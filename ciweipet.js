@@ -1723,6 +1723,26 @@ aiSettings.classList.add('show');
         aiKeyInput.type = aiKeyInput.type === 'password' ? 'text' : 'password';
         aiKeyToggle.textContent = aiKeyInput.type === 'password' ? '👁️' : '🙈';
     });
+    // 【修复】回车键直接保存
+aiKeyInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        aiSaveBtn.click();
+    }
+});
+
+// 【修复】聚焦时把保存按钮滚到可见区域
+aiKeyInput.addEventListener('focus', function () {
+    setTimeout(function () {
+        try {
+            aiSaveBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch (err) {
+            // 老浏览器兜底
+            var panel = aiSettings.querySelector('.cp-ai-body');
+            if (panel) panel.scrollTop = panel.scrollHeight;
+        }
+    }, 350);
+});
 
     aiSaveBtn.addEventListener('click', function () {
         var k = aiKeyInput.value.trim();
