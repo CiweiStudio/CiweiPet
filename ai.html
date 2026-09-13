@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🤖 小c控制面板</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg-body: #0a0a0f;
+    --text-primary: #fff;
+    --text-secondary: rgba(255,255,255,.75);
+    --text-muted: rgba(255,255,255,.4);
+    --card-bg: rgba(255,255,255,.05);
+    --card-border: rgba(255,255,255,.08);
+    --card-hover: rgba(255,255,255,.08);
+    --accent: #58a6ff;
+    --danger: #ef4444;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+}
+[data-theme="light"] {
+    --bg-body: #f0f2f5;
+    --text-primary: #1a1a2e;
+    --text-secondary: #444;
+    --text-muted: #888;
+    --card-bg: rgba(255,255,255,.75);
+    --card-border: rgba(0,0,0,.06);
+    --card-hover: rgba(0,0,0,.03);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+    background: var(--bg-body);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 20px 16px 60px;
+    transition: background .3s, color .3s;
+    -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 640px; margin: 0 auto; }
+
+.header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0 16px;
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 24px;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.back-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    padding: 6px 14px;
+    border-radius: 30px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    transition: all .2s;
+}
+.back-link:hover { border-color: var(--accent); }
+.title { font-size: 18px; font-weight: 700; }
+.title span { color: var(--accent); }
+
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(20px);
+    transition: all .2s;
+}
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+}
+.card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.token-status {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--card-hover);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+.token-status.ok { border-left: 3px solid var(--ok); }
+.token-status.warn { border-left: 3px solid var(--warn); }
+.token-status .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.token-status.ok .badge { background: rgba(34,197,94,.15); color: var(--ok); }
+.token-status.warn .badge { background: rgba(245,158,11,.15); color: var(--warn); }
+.token-input {
+    display: flex; gap: 6px; margin-top: 8px;
+}
+.token-input input {
+    flex: 1; min-width: 0;
+    padding: 8px 12px;
+    background: var(--card-hover);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: monospace;
+    outline: none;
+}
+.token-input input:focus { border-color: var(--accent); }
+.btn {
+    padding: 8px 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.btn:hover { background: var(--card-hover); border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary:hover { background: #4a8edb; }
+.btn:active { transform: scale(.95); }
+
+/* 余额 */
+.balance-box {
+    margin-top: 12px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--card-hover);
+}
+.balance-main {
+    display: flex; align-items: baseline; gap: 6px;
+    margin-bottom: 8px;
+}
+.balance-main .currency {
+    font-size: 16px;
+    color: var(--text-muted);
+}
+.balance-main .amount {
+    font-size: 32px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(135deg, var(--accent), var(--ok));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.balance-sub {
+    display: flex; gap: 16px; font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.balance-sub strong { color: var(--text-secondary); font-weight: 600; }
+.balance-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px;
+}
+.balance-status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+}
+.balance-status .dot.ok { background: var(--ok); }
+.balance-status .dot.err { background: var(--danger); }
+.balance-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 12px 0;
+}
+
+.field { margin-bottom: 18px; }
+.field:last-child { margin-bottom: 0; }
+.label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    letter-spacing: .3px;
+}
+.label-val { color: var(--text-primary); font-weight: 700; margin-left: 6px; }
+
+.radio-group { display: flex; flex-direction: column; gap: 6px; }
+.radio {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    border: 1px solid transparent;
+    background: var(--card-hover);
+    transition: all .15s;
+}
+.radio:hover { background: var(--card-bg); }
+.radio input { accent-color: var(--accent); }
+.radio.checked { border-color: var(--accent); background: rgba(88,166,255,.1); }
+.radio .sub { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+input[type="range"] {
+    width: 100%; accent-color: var(--accent); cursor: pointer;
+}
+
+.seg {
+    display: flex; gap: 4px;
+    background: var(--card-hover);
+    padding: 4px; border-radius: 10px;
+}
+.seg button {
+    flex: 1; padding: 8px;
+    border: none; border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+}
+.seg button:hover { color: var(--text-primary); }
+.seg button.active {
+    background: var(--card-bg);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+
+.switch {
+    display: inline-block; position: relative;
+    width: 44px; height: 24px; cursor: pointer;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span {
+    position: absolute; inset: 0;
+    background: var(--card-hover);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    transition: all .2s;
+}
+.switch span::after {
+    content: ''; position: absolute;
+    left: 2px; top: 2px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all .2s;
+}
+.switch input:checked + span { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + span::after { left: 22px; background: #fff; }
+
+.status {
+    font-size: 12px;
+    text-align: center;
+    min-height: 18px;
+    margin-top: 12px;
+    color: var(--text-muted);
+}
+.status.ok { color: var(--ok); }
+.status.err { color: var(--danger); }
+
+.actions {
+    display: flex; gap: 8px;
+    margin-top: 18px; padding-top: 16px;
+    border-top: 1px solid var(--card-border);
+}
+.actions .btn { flex: 1; }
+
+.preview {
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 12px;
+    background: rgba(0,0,0,.2);
+    padding: 12px 14px;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+}
+[data-theme="light"] .preview { background: rgba(0,0,0,.05); }
+
+@media (max-width: 600px) {
+    body { padding: 12px 10px 40px; }
+    .title { font-size: 16px; }
+    .card { padding: 16px; border-radius: 14px; }
+    .balance-main .amount { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <div class="header-left">
+            <a class="back-link" href="./index.html">← 返回</a>
+            <span class="title">🤖 AI <span>控制面板</span></span>
+        </div>
+        <button class="btn" id="themeBtn">🌙</button>
+    </div>
+
+    <!-- GitHub Token -->
+    <div class="card">
+        <div class="card-title">🔑 GitHub Token</div>
+        <div class="card-desc">用于保存参数到 ai-config.json。与博客后台共用同一个 Token。</div>
+        <div class="token-status" id="tokenStatus">
+            <span>状态：<strong id="tokenStatusText">读取中…</strong></span>
+            <span class="badge" id="tokenBadge">…</span>
+        </div>
+        <div class="token-input">
+            <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off">
+            <button class="btn" id="tokenToggle">👁️</button>
+            <button class="btn primary" id="tokenSave">保存</button>
+        </div>
+    </div>
+
+    <!-- DeepSeek 余额 -->
+    <div class="card">
+        <div class="card-title">💰 DeepSeek 余额</div>
+        <div class="card-desc">查询你的 DeepSeek API 账户余额。Key 只存本机，不上传 GitHub。</div>
+        <div class="token-input">
+            <input type="password" id="balanceKey" placeholder="sk-..." autocomplete="off">
+            <button class="btn" id="balanceKeyToggle">👁️</button>
+            <button class="btn primary" id="balanceQuery">🔍 查询</button>
+        </div>
+        <div id="balanceBox">
+            <div class="balance-empty">填入 API Key 后点「查询」</div>
+        </div>
+        <div class="status" id="balanceStatus"></div>
+    </div>
+
+    <!-- AI 参数 -->
+    <div class="card">
+        <div class="card-title">⚙️ AI 参数</div>
+        <div class="card-desc">保存在 <code>ai-config.json</code>，所有设备共享。</div>
+
+        <div class="field">
+            <label class="label">🤖 模型</label>
+            <div class="radio-group" id="modelGroup">
+                <label class="radio checked">
+                    <input type="radio" name="model" value="deepseek-v4-flash" checked>
+                    <span>Flash · 快速</span>
+                    <span class="sub">便宜</span>
+                </label>
+                <label class="radio">
+                    <input type="radio" name="model" value="deepseek-v4-pro">
+                    <span>Pro · 推理</span>
+                    <span class="sub">更强</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label">🌡️ 温度<span class="label-val" id="tempVal">0.7</span></label>
+            <input type="range" id="temp" min="0" max="2" step="0.1" value="0.7">
+        </div>
+
+        <div class="field">
+            <label class="label">📏 最大输出<span class="label-val" id="maxTokVal">1024</span></label>
+            <input type="range" id="maxTok" min="64" max="4096" step="64" value="1024">
+        </div>
+
+        <div class="field">
+            <label class="label">💬 上下文行数<span class="label-val" id="ctxVal">10</span></label>
+            <input type="range" id="ctx" min="1" max="20" step="1" value="10">
+        </div>
+
+        <div class="field">
+            <label class="label">🧠 推理强度</label>
+            <div class="seg" id="effortSeg">
+                <button data-val="low">低</button>
+                <button data-val="high" class="active">高</button>
+                <button data-val="max">最大</button>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label">⚡ 流式输出</label>
+            <label class="switch">
+                <input type="checkbox" id="stream" checked>
+                <span></span>
+            </label>
+        </div>
+
+        <div class="actions">
+            <button class="btn" id="reloadBtn">🔄 重新加载</button>
+            <button class="btn primary" id="saveBtn">💾 保存到 GitHub</button>
+        </div>
+        <div class="status" id="status"></div>
+    </div>
+
+    <!-- 预览 -->
+    <div class="card">
+        <div class="card-title">📄 当前 ai-config.json</div>
+        <div class="preview" id="preview">加载中…</div>
+    </div>
+
+    <!-- 说明 -->
+    <div class="card">
+        <div class="card-title">💡 说明</div>
+        <div class="card-desc" style="margin-bottom:0;line-height:1.7;">
+            1. <strong>API Key</strong> 需要填两次：这里填一次（查余额用），刺猬的 🔑 面板填一次（对话用）。因为两个域名 localStorage 不互通。<br>
+            2. <strong>参数</strong> 保存在 <code>ai-config.json</code>，刺猬每次启动时会自动读取。<br>
+            3. 参数修改后，CiweiPet 的刺猬<strong>刷新页面</strong>即可生效（有 5 分钟缓存）。
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var REPO = 'xiaociwei01/CiweiBlog';
+var CONFIG_FILE = 'ai-config.json';
+var TOKEN_KEY = 'ciwei_blog_token';
+var BALANCE_KEY = 'ciwei_ai_key_console';
+var THEME_KEY = 'ciwei_ai_panel_theme';
+
+var $ = function(id){ return document.getElementById(id); };
+
+var token = '';
+var currentSha = '';
+var currentConfig = null;
+
+// ============================================================
+// 主题
+// ============================================================
+function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem(THEME_KEY, t);
+    $('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+}
+function initTheme(){
+    var saved = localStorage.getItem(THEME_KEY) || 'dark';
+    applyTheme(saved);
+}
+$('themeBtn').addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme');
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+// ============================================================
+// Token 管理
+// ============================================================
+function loadToken(){
+    token = localStorage.getItem(TOKEN_KEY) || '';
+    updateTokenStatus();
+    if (token) $('tokenInput').value = token;
+}
+function updateTokenStatus(){
+    var el = $('tokenStatus');
+    var text = $('tokenStatusText');
+    var badge = $('tokenBadge');
+    if (token && token.startsWith('ghp_')) {
+        el.className = 'token-status ok';
+        text.textContent = '已登录';
+        badge.textContent = '✓ 有效';
+    } else if (token) {
+        el.className = 'token-status warn';
+        text.textContent = '格式可疑';
+        badge.textContent = '⚠ 检查';
+    } else {
+        el.className = 'token-status warn';
+        text.textContent = '未登录';
+        badge.textContent = '⚠ 缺失';
+    }
+}
+$('tokenToggle').addEventListener('click', function(){
+    var inp = $('tokenInput');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    this.textContent = inp.type === 'password' ? '👁️' : '🙈';
+});
+$('tokenSave').addEventListener('click', function(){
+    var v = $('tokenInput').value.trim();
+    if (!v) { showStatus('请输入 Token', 'err'); return; }
+    localStorage.setItem(TOKEN_KEY, v);
+    token = v;
+    updateTokenStatus();
+    showStatus('✅ Token 已保存', 'ok');
+});
+
+// ============================================================
+// 余额查询
+// ============================================================
+function loadBalanceKey(){
+    var k = localStorage.getItem(BALANCE_KEY) || '';
+    if (k) $('balanceKey').value = k;
+}
+function saveBalanceKey(k){
+    localStorage.setItem(BALANCE_KEY, k);
+}
+function getBalanceKey(){
+    return $('balanceKey').value.trim();
+}
+function showBalanceStatus(msg, cls){
+    var el = $('balanceStatus');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+}
+$('balanceKeyToggle').addEventListener('click', function(){
+    var inp = $('balanceKey');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    this.textContent = inp.type === 'password' ? '👁️' : '🙈';
+});
+$('balanceQuery').addEventListener('click', queryBalance);
+$('balanceKey').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') queryBalance();
+});
+
+function queryBalance(){
+    var k = getBalanceKey();
+    if (!k) {
+        showBalanceStatus('⚠️ 请先填 API Key', 'err');
+        return;
+    }
+    saveBalanceKey(k);
+    showBalanceStatus('⏳ 查询中…');
+
+    fetch('https://api.deepseek.com/user/balance', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + k,
+            'Accept': 'application/json'
+        }
+    })
+    .then(function(r){
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    })
+    .then(function(data){
+        renderBalance(data);
+        showBalanceStatus('✅ 查询成功', 'ok');
+    })
+    .catch(function(err){
+        console.error(err);
+        $('balanceBox').innerHTML = '<div class="balance-empty">查询失败：' + err.message + '</div>';
+        showBalanceStatus('❌ ' + err.message, 'err');
+    });
+}
+
+function renderBalance(data){
+    var box = $('balanceBox');
+    if (!data || !data.balance_infos || data.balance_infos.length === 0) {
+        box.innerHTML = '<div class="balance-empty">暂无余额信息</div>';
+        return;
+    }
+
+    var html = '';
+    for (var i = 0; i < data.balance_infos.length; i++) {
+        var info = data.balance_infos[i];
+        var symbol = info.currency === 'CNY' ? '¥' :
+                     info.currency === 'USD' ? '$' : (info.currency + ' ');
+
+        html += '<div class="balance-box">' +
+            '<div class="balance-main">' +
+                '<span class="currency">' + symbol + '</span>' +
+                '<span class="amount">' + info.total_balance + '</span>' +
+            '</div>' +
+            '<div class="balance-sub">' +
+                '<span>赠送：<strong>' + symbol + info.granted_balance + '</strong></span>' +
+                '<span>充值：<strong>' + symbol + info.topped_up_balance + '</strong></span>' +
+            '</div>' +
+        '</div>';
+    }
+
+    html += '<div class="balance-status">' +
+        '<span class="dot ' + (data.is_available ? 'ok' : 'err') + '"></span>' +
+        '<span>' + (data.is_available ? '账户可用' : '账户余额不足或不可用') + '</span>' +
+    '</div>';
+
+    box.innerHTML = html;
+}
+
+// ============================================================
+// 读写 ai-config.json
+// ============================================================
+function loadConfig(){
+    showStatus('⏳ 加载配置…');
+    var url = 'https://api.github.com/repos/' + REPO + '/contents/' + CONFIG_FILE;
+    fetch(url, { cache: 'no-store' })
+        .then(function(r){
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function(data){
+            currentSha = data.sha;
+            var text = atob(data.content.replace(/\n/g, ''));
+            try { text = decodeURIComponent(escape(text)); } catch(e) {}
+            currentConfig = JSON.parse(text);
+            applyConfigToForm(currentConfig);
+            $('preview').textContent = JSON.stringify(currentConfig, null, 2);
+            showStatus('✅ 加载成功', 'ok');
+        })
+        .catch(function(err){
+            console.error(err);
+            showStatus('❌ 加载失败：' + err.message, 'err');
+            $('preview').textContent = '加载失败';
+        });
+}
+
+function applyConfigToForm(cfg){
+    var radios = document.querySelectorAll('input[name="model"]');
+    for (var i = 0; i < radios.length; i++) {
+        radios[i].checked = radios[i].value === cfg.model;
+        var label = radios[i].closest('.radio');
+        if (label) label.classList.toggle('checked', radios[i].checked);
+    }
+    $('temp').value = cfg.temperature;
+    $('tempVal').textContent = cfg.temperature;
+    $('maxTok').value = cfg.maxTokens;
+    $('maxTokVal').textContent = cfg.maxTokens;
+    $('ctx').value = cfg.contextLines;
+    $('ctxVal').textContent = cfg.contextLines;
+    var btns = document.querySelectorAll('#effortSeg button');
+    for (var j = 0; j < btns.length; j++) {
+        btns[j].classList.toggle('active', btns[j].dataset.val === cfg.reasoningEffort);
+    }
+    $('stream').checked = cfg.stream !== false;
+}
+
+function collectConfig(){
+    var model = 'deepseek-v4-flash';
+    var radios = document.querySelectorAll('input[name="model"]');
+    for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) { model = radios[i].value; break; }
+    }
+    var effort = 'high';
+    var btns = document.querySelectorAll('#effortSeg button');
+    for (var j = 0; j < btns.length; j++) {
+        if (btns[j].classList.contains('active')) { effort = btns[j].dataset.val; break; }
+    }
+    return {
+        model: model,
+        temperature: parseFloat($('temp').value),
+        maxTokens: parseInt($('maxTok').value, 10),
+        contextLines: parseInt($('ctx').value, 10),
+        reasoningEffort: effort,
+        stream: $('stream').checked
+    };
+}
+
+function saveConfig(){
+    if (!token) {
+        showStatus('❌ 请先填写 GitHub Token', 'err');
+        return;
+    }
+    var cfg = collectConfig();
+    var content = btoa(unescape(encodeURIComponent(JSON.stringify(cfg, null, 2))));
+    var url = 'https://api.github.com/repos/' + REPO + '/contents/' + CONFIG_FILE;
+
+    showStatus('⏳ 保存中…');
+    fetch(url, {
+        method: 'PUT',
+        headers: {
+            'Authorization': 'token ' + token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: 'chore: update ai-config.json',
+            content: content,
+            sha: currentSha
+        })
+    })
+    .then(function(r){
+        if (!r.ok) return r.text().then(function(t){ throw new Error('HTTP ' + r.status + ' ' + t); });
+        return r.json();
+    })
+    .then(function(data){
+        currentSha = data.content.sha;
+        currentConfig = cfg;
+        $('preview').textContent = JSON.stringify(cfg, null, 2);
+        showStatus('✅ 已保存到 GitHub', 'ok');
+    })
+    .catch(function(err){
+        console.error(err);
+        showStatus('❌ 保存失败：' + err.message, 'err');
+    });
+}
+
+function showStatus(msg, cls){
+    var el = $('status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+// ============================================================
+// 事件
+// ============================================================
+$('temp').addEventListener('input', function(){ $('tempVal').textContent = this.value; });
+$('maxTok').addEventListener('input', function(){ $('maxTokVal').textContent = this.value; });
+$('ctx').addEventListener('input', function(){ $('ctxVal').textContent = this.value; });
+
+var radios = document.querySelectorAll('input[name="model"]');
+for (var i = 0; i < radios.length; i++) {
+    radios[i].addEventListener('change', function(){
+        var labels = document.querySelectorAll('.radio');
+        for (var k = 0; k < labels.length; k++) {
+            var r = labels[k].querySelector('input');
+            labels[k].classList.toggle('checked', r && r.checked);
+        }
+    });
+}
+
+var effortBtns = document.querySelectorAll('#effortSeg button');
+for (var j = 0; j < effortBtns.length; j++) {
+    effortBtns[j].addEventListener('click', function(){
+        var all = document.querySelectorAll('#effortSeg button');
+        for (var k = 0; k < all.length; k++) all[k].classList.remove('active');
+        this.classList.add('active');
+    });
+}
+
+$('saveBtn').addEventListener('click', saveConfig);
+$('reloadBtn').addEventListener('click', loadConfig);
+
+// 启动
+initTheme();
+loadToken();
+loadBalanceKey();
+loadConfig();
+
+})();
+</script>
+</body>
+</html>

@@ -210,18 +210,16 @@ function getDaysSinceBirth() {
     var dialogue = document.createElement('div');
     dialogue.id = 'ciwei-pet-dialogue';
     dialogue.innerHTML =
-    '<div class="cp-dlg-header">' +
-        '<span class="cp-dlg-title">💬 和小c聊天</span>' +
-        '<button class="cp-dlg-settings-btn" id="cp-dlg-settings-btn" title="AI Key">🔑</button>' +
-        '<button class="cp-dlg-close" id="cp-dlg-close">✕</button>' +
-    '</div>' +
-    '<div id="cp-dlg-body"></div>' +
-    '<div class="cp-dlg-input-area">' +
-        '<button id="cp-upload-btn" style="background:transparent; border:none; color:var(--cp-panel-text-sub); font-size:16px; padding:2px; cursor:pointer;" title="上传图片">📎</button>' +
-        '<input type="file" id="cp-file-input" accept="image/*" style="display:none;">' +
-        '<input type="text" class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off">' +
-        '<button class="cp-dlg-send" id="cp-dlg-send">发送</button>' +
-    '</div>';
+        '<div class="cp-dlg-header">' +
+            '<span class="cp-dlg-title">💬 和小c聊天</span>' +
+            '<button class="cp-dlg-settings-btn" id="cp-dlg-settings-btn" title="AI Key">🔑</button>' +
+            '<button class="cp-dlg-close" id="cp-dlg-close">✕</button>' +
+        '</div>' +
+        '<div id="cp-dlg-body"></div>' +
+        '<div class="cp-dlg-input-area">' +
+            '<input type="text" class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off">' +
+            '<button class="cp-dlg-send" id="cp-dlg-send">发送</button>' +
+        '</div>';
 
     var aiSettings = document.createElement('div');
     aiSettings.id = 'ciwei-pet-ai-settings';
@@ -1175,83 +1173,8 @@ var dlgDrag = {
         hideDialogue();
     });
 
-    // ============================================================
-// 图片上传与压缩逻辑（独立在外面绑定，只执行一次）
-// ============================================================
-var uploadBtn = dialogue.querySelector('#cp-upload-btn');
-var fileInput = dialogue.querySelector('#cp-file-input');
-
-uploadBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    fileInput.click();
-});
-
-fileInput.addEventListener('change', function (e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    
-    var apiKey = getApiKey();
-    if (!apiKey) { showBubble('我还没接上 AI 大脑，看不了图片哦～', 3000, false); return; }
-    
-    function sendImageBase64(base64) {
-        showBubble('我看看这图...', 2000, false);
-        var model = 'deepseek-v4-flash';
-        var payload = {
-            model: model,
-            messages: [
-                { role: 'system', content: '你是小c，一只可爱的电子刺猬。看到图片后简短俏皮地评价一下，控制在50字以内。' },
-                { role: 'user', content: [{ type: 'text', text: '你看这张图' }, { type: 'image_url', image_url: { url: base64 } }] }
-            ]
-        };
-        fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-            body: JSON.stringify(payload)
-        }).then(function(res) { return res.json(); }).then(function(data) {
-            if (data.choices && data.choices[0]) {
-                showBubble(data.choices[0].message.content, 5000, false);
-                pushHistory('user', '[上传了一张图片]');
-                pushHistory('assistant', data.choices[0].message.content);
-            } else {
-                showBubble('这图有点奇怪，我看不清...', 4000, false);
-            }
-        }).catch(function(err) { showBubble('看图片失败: ' + err.message, 4000, false); });
-    }
-    
-    if (file.size > 500 * 1024) {
-        var wantCompress = confirm("小c 眼睛有点小，这张图有点大 (" + (file.size/1024/1024).toFixed(1) + "MB)，要压缩一下再给我看吗？");
-        if (wantCompress) {
-            var reader = new FileReader();
-            reader.onload = function(evt) {
-                var imgObj = new Image();
-                imgObj.onload = function() {
-                    var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
-                    var maxSize = 1024, width = imgObj.width, height = imgObj.height;
-                    if (width > height && width > maxSize) { height *= maxSize / width; width = maxSize; }
-                    else if (height > maxSize) { width *= maxSize / height; height = maxSize; }
-                    canvas.width = width; canvas.height = height; ctx.drawImage(imgObj, 0, 0, width, height);
-                    var compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                    sendImageBase64(compressedBase64);
-                };
-                imgObj.src = evt.target.result;
-            };
-            reader.readAsDataURL(file);
-        } else {
-            var reader2 = new FileReader();
-            reader2.onload = function(evt) { sendImageBase64(evt.target.result); };
-            reader2.readAsDataURL(file);
-        }
-    } else {
-        var reader3 = new FileReader();
-        reader3.onload = function(evt) { sendImageBase64(evt.target.result); };
-        reader3.readAsDataURL(file);
-    }
-    fileInput.value = ''; // 清空 input
-});
-
-// ============================================================
-// 文本指令拦截（不消耗 Token）
-// ============================================================
+    // ⭐ 用户自由输入
+    // 文本指令拦截（不消耗 Token）
 function checkKeywordsAndAction(text) {
     if (text.includes('转两圈') || text.includes('转个圈')) {
         doSpin();
@@ -1273,9 +1196,6 @@ function checkKeywordsAndAction(text) {
     return false;
 }
 
-// ============================================================
-// 用户自由输入
-// ============================================================
 function sendUserInput() {
     var text = dlgInput.value.trim();
     if (!text) return;
@@ -1292,21 +1212,867 @@ function sendUserInput() {
     askAI(text);
 }
 
-dlgSend.addEventListener('click', function (e) {
-    e.stopPropagation();
-    sendUserInput();
-});
-
-dlgInput.addEventListener('keydown', function (e) {
-    e.stopPropagation();
-    if (e.key === 'Enter') {
-        e.preventDefault();
+    dlgSend.addEventListener('click', function (e) {
+        e.stopPropagation();
         sendUserInput();
-    }
+    });
+
+    dlgInput.addEventListener('keydown', function (e) {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            sendUserInput();
+        }
+    });
+
+    dlgInput.addEventListener('click', function (e) {
+        e.stopPropagation();
+    });
+    // ============================================================
+// 对话面板拖动
+// ============================================================
+var dlgHeader = dialogue.querySelector('.cp-dlg-header');
+
+function saveDlgPos() {
+    var r = dialogue.getBoundingClientRect();
+    lsSet('ciwei_pet_dlg_pos', JSON.stringify({
+        x: Math.round(r.left),
+        y: Math.round(r.top)
+    }));
+}
+
+dlgHeader.addEventListener('pointerdown', function (e) {
+    // 点按钮时不触发拖动
+    if (e.target.closest('button')) return;
+
+    dlgDrag.dragging = true;
+    dlgDrag.moved = false;
+    dlgDrag.startX = e.clientX;
+    dlgDrag.startY = e.clientY;
+
+    var r = dialogue.getBoundingClientRect();
+    dlgDrag.startLeft = r.left;
+    dlgDrag.startTop = r.top;
+
+    dlgHeader.classList.add('dragging');
+    try { dlgHeader.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
 });
 
-dlgInput.addEventListener('click', function (e) {
-    e.stopPropagation();
+dlgHeader.addEventListener('pointermove', function (e) {
+    if (!dlgDrag.dragging) return;
+    e.preventDefault();
+
+    var dx = e.clientX - dlgDrag.startX;
+    var dy = e.clientY - dlgDrag.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dlgDrag.moved = true;
+    if (!dlgDrag.moved) return;
+
+    var newLeft = dlgDrag.startLeft + dx;
+    var newTop  = dlgDrag.startTop + dy;
+
+    // 边界约束
+    var w = dialogue.offsetWidth;
+    var h = dialogue.offsetHeight;
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - w));
+    newTop  = Math.max(0, Math.min(newTop, window.innerHeight - h));
+
+    dialogue.style.left = newLeft + 'px';
+    dialogue.style.top  = newTop + 'px';
 });
+
+function endDlgDrag(e) {
+    if (!dlgDrag.dragging) return;
+    dlgDrag.dragging = false;
+    dlgHeader.classList.remove('dragging');
+    try { dlgHeader.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (dlgDrag.moved) saveDlgPos();
+}
+
+dlgHeader.addEventListener('pointerup', endDlgDrag);
+dlgHeader.addEventListener('pointercancel', function (e) {
+    if (!dlgDrag.dragging) return;
+    dlgDrag.dragging = false;
+    dlgHeader.classList.remove('dragging');
+});
+// ============================================================
+// AI Key 面板拖动
+// ============================================================
+var aiHeader = aiSettings.querySelector('.cp-ai-header');
+var aiDrag = {
+    dragging: false,
+    startX: 0, startY: 0,
+    startLeft: 0, startTop: 0,
+    moved: false
+};
+
+function saveAISettingsPos() {
+    var r = aiSettings.getBoundingClientRect();
+    lsSet('ciwei_pet_ai_pos', JSON.stringify({
+        x: Math.round(r.left),
+        y: Math.round(r.top)
+    }));
+}
+
+aiHeader.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('button')) return;
+
+    aiDrag.dragging = true;
+    aiDrag.moved = false;
+    aiDrag.startX = e.clientX;
+    aiDrag.startY = e.clientY;
+
+    var r = aiSettings.getBoundingClientRect();
+    aiDrag.startLeft = r.left;
+    aiDrag.startTop = r.top;
+
+    aiHeader.classList.add('dragging');
+    try { aiHeader.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+});
+
+aiHeader.addEventListener('pointermove', function (e) {
+    if (!aiDrag.dragging) return;
+    e.preventDefault();
+
+    var dx = e.clientX - aiDrag.startX;
+    var dy = e.clientY - aiDrag.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) aiDrag.moved = true;
+    if (!aiDrag.moved) return;
+
+    var newLeft = aiDrag.startLeft + dx;
+    var newTop  = aiDrag.startTop + dy;
+
+    var w = aiSettings.offsetWidth;
+    var h = aiSettings.offsetHeight;
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - w));
+    newTop  = Math.max(0, Math.min(newTop, window.innerHeight - h));
+
+    aiSettings.style.left = newLeft + 'px';
+    aiSettings.style.top  = newTop + 'px';
+});
+
+function endAIDrag(e) {
+    if (!aiDrag.dragging) return;
+    aiDrag.dragging = false;
+    aiHeader.classList.remove('dragging');
+    try { aiHeader.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (aiDrag.moved) saveAISettingsPos();
+}
+
+aiHeader.addEventListener('pointerup', endAIDrag);
+aiHeader.addEventListener('pointercancel', function (e) {
+    if (!aiDrag.dragging) return;
+    aiDrag.dragging = false;
+    aiHeader.classList.remove('dragging');
+});
+    // ============================================================
+    // AI 配置（从 CiweiBlog/ai-config.json 读）
+    // ============================================================
+    function fetchAIConfig() {
+        var now = Date.now();
+        if (aiConfigCache && now - aiConfigCacheTime < AI_CONFIG_TTL) {
+            return Promise.resolve(aiConfigCache);
+        }
+        return fetch(AI_CONFIG_URL + '?t=' + now, { cache: 'no-store' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (cfg) {
+                var merged = {};
+                for (var k in DEFAULT_AI_CONFIG) merged[k] = DEFAULT_AI_CONFIG[k];
+                for (var k2 in cfg) merged[k2] = cfg[k2];
+                aiConfigCache = merged;
+                aiConfigCacheTime = now;
+                return merged;
+            })
+            .catch(function () {
+                aiConfigCache = DEFAULT_AI_CONFIG;
+                aiConfigCacheTime = now;
+                return DEFAULT_AI_CONFIG;
+            });
+    }
+
+    function getApiKey() { return lsGet(KEYS.aiKey) || ''; }
+    function saveApiKey(k) { lsSet(KEYS.aiKey, k); updateAICheck(); }
+    function clearApiKey() { lsSet(KEYS.aiKey, ''); updateAICheck(); }
+
+    function updateAICheck() {
+        var key = getApiKey();
+        if (key) {
+            aiChk.textContent = '已配置';
+            aiChk.style.color = '#58a6ff';
+        } else {
+            aiChk.textContent = '未配置';
+            aiChk.style.color = '';
+        }
+    }
+
+    function renderAIParams(cfg) {
+        var html =
+            '<div class="cp-ai-param-row"><span>模型</span><strong>' +
+                (cfg.model === 'deepseek-v4-pro' ? 'Pro · 推理' : 'Flash · 快速') +
+            '</strong></div>' +
+            '<div class="cp-ai-param-row"><span>温度</span><strong>' + cfg.temperature + '</strong></div>' +
+            '<div class="cp-ai-param-row"><span>最大输出</span><strong>' + cfg.maxTokens + ' tokens</strong></div>' +
+            '<div class="cp-ai-param-row"><span>上下文</span><strong>' + cfg.contextLines + ' 轮</strong></div>' +
+            '<div class="cp-ai-param-row"><span>推理强度</span><strong>' +
+                (cfg.reasoningEffort === 'max' ? '最大' :
+                 cfg.reasoningEffort === 'low' ? '低' : '高') +
+            '</strong></div>' +
+            '<div class="cp-ai-param-row"><span>流式输出</span><strong>' +
+                (cfg.stream !== false ? '开启' : '关闭') +
+            '</strong></div>';
+        aiParamsEl.innerHTML = html;
+    }
+
+    // ============================================================
+    // 对话历史
+    // ============================================================
+    function getHistory() {
+        var raw = lsGet(KEYS.aiHist);
+        if (!raw) return [];
+        try { return JSON.parse(raw) || []; } catch (e) { return []; }
+    }
+    function pushHistory(role, content) {
+    // 如果内容里残留了旧名字，强制替换掉
+    if (typeof content === 'string') {
+        content = content.replace(/小ci/g, '小c');
+    }
+    var h = getHistory();
+    h.push({ role: role, content: content });
+    if (h.length > 100) h = h.slice(-100);
+    lsSet(KEYS.aiHist, JSON.stringify(h));
+}
+    function clearHistory() { lsSet(KEYS.aiHist, '[]'); }
+
+    // ============================================================
+    // DeepSeek AI
+    // ============================================================
+    function askAI(userInput) {
+        var apiKey = getApiKey();
+        if (!apiKey) {
+            showBubble('我还没有 AI 大脑…点 🔑 配置一下吧 🥺', 3000, false);
+            setFace('surprised', 2000);
+            return;
+        }
+
+        S.aiThinking = true;
+        pushHistory('user', userInput);
+        setFace('surprised');
+
+        fetchAIConfig().then(function (cfg) {
+            var history = getHistory();
+            var ctxLines = cfg.contextLines || 10;
+            var recent = history.slice(-ctxLines * 2 - 1, -1);
+
+            // 获取当前真实时间，让 AI 有“时间感知”
+var now = new Date();
+var timeStr = now.toLocaleString('zh-CN', { hour12: false });
+var timeContext = "\n【系统提示：当前真实时间是 " + timeStr + "。如果用户问时间、年龄、多久了，请根据此信息回答。】";
+
+var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
+            for (var i = 0; i < recent.length; i++) {
+                messages.push({ role: recent[i].role, content: recent[i].content });
+            }
+            messages.push({ role: 'user', content: userInput });
+
+            var body = {
+                model: cfg.model || 'deepseek-v4-flash',
+                messages: messages,
+                temperature: typeof cfg.temperature === 'number' ? cfg.temperature : 0.7,
+                max_tokens: cfg.maxTokens || 1024,
+                stream: cfg.stream !== false
+            };
+
+            if (cfg.model === 'deepseek-v4-pro' && cfg.reasoningEffort) {
+                body.reasoning_effort = cfg.reasoningEffort;
+            }
+
+            if (body.stream) {
+                showBubbleStream('💭 想想…');
+                streamAI(apiKey, body, userInput);
+            } else {
+                showBubble('💭 想想…', 30000, false);
+                fetchAI(apiKey, body, userInput);
+            }
+        });
+    }
+
+    function fetchAI(apiKey, body, userInput) {
+        fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify(body)
+        }).then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        }).then(function (json) {
+            var reply = json.choices && json.choices[0] && json.choices[0].message
+                ? json.choices[0].message.content
+                : '（没听清…）';
+            showBubble(reply, 5000, false);
+            pushHistory('assistant', reply);
+            setFace('happy', 2500);
+            S.mood = clamp(S.mood + 3, 0, 100);
+            updateMoodColor();
+            S.aiThinking = false;
+        }).catch(function (err) {
+            console.error('AI 调用失败:', err);
+            showBubble('唔…连接失败：' + (err.message || '未知错误'), 4000, false);
+            setFace('angry', 2500);
+            S.aiThinking = false;
+        });
+    }
+
+    function streamAI(apiKey, body, userInput) {
+        fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify(body)
+        }).then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            if (!res.body) {
+                return res.json().then(function (json) {
+                    var reply = json.choices[0].message.content;
+                    showBubble(reply, 60000, false);
+                    pushHistory('assistant', reply);
+                    setFace('happy', 2500);
+                    S.aiThinking = false;
+                });
+            }
+            return readStream(res.body);
+        }).then(function (fullText) {
+            if (!fullText) return;
+            showBubble(fullText, 60000, false);
+            pushHistory('assistant', fullText);
+            setFace('happy', 2500);
+            S.mood = clamp(S.mood + 3, 0, 100);
+            updateMoodColor();
+            S.aiThinking = false;
+        }).catch(function (err) {
+            console.error('AI 流式失败:', err);
+            showBubble('唔…连接失败：' + (err.message || '未知错误'), 4000, false);
+            setFace('angry', 2500);
+            S.aiThinking = false;
+        });
+    }
+
+    function readStream(stream) {
+        var reader = stream.getReader();
+        var decoder = new TextDecoder();
+        var fullText = '';
+        var buffer = '';
+
+        function pump() {
+            return reader.read().then(function (result) {
+                if (result.done) return fullText;
+                buffer += decoder.decode(result.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line || line.indexOf('data: ') !== 0) continue;
+                    var data = line.slice(6);
+                    if (data === '[DONE]') continue;
+                    try {
+                        var json = JSON.parse(data);
+                        var delta = json.choices && json.choices[0] && json.choices[0].delta;
+                        if (delta && delta.content) {
+                            fullText += delta.content;
+                            showBubbleStream(fullText);
+                        }
+                    } catch (e) {}
+                }
+                return pump();
+            });
+        }
+        return pump();
+    }
+
+    // ============================================================
+    // AI Key 面板
+    // ============================================================
+    function openAISettings() {
+        aiKeyInput.value = getApiKey();
+        aiStatus.textContent = '';
+        aiStatus.className = 'cp-ai-status';
+
+        aiParamsEl.innerHTML = '<span style="color:var(--cp-panel-text-muted);">加载中…</span>';
+fetchAIConfig().then(function (cfg) {
+    renderAIParams(cfg);
+});
+
+// 自动查一次余额
+setTimeout(queryBalance, 300);
+
+        var s = getSize();
+var px, py;
+if (typeof aiSettings._savedX === 'number' && typeof aiSettings._savedY === 'number') {
+    px = aiSettings._savedX;
+    py = aiSettings._savedY;
+} else {
+    px = S.x + s + 8;
+    py = S.y;
+}
+aiSettings.style.left = px + 'px';
+aiSettings.style.top  = py + 'px';
+aiSettings.classList.add('show');
+
+        var ar = aiSettings.getBoundingClientRect();
+        if (px + ar.width > window.innerWidth - 8) {
+            aiSettings.style.left = Math.max(8, window.innerWidth - ar.width - 8) + 'px';
+        }
+        if (py + ar.height > window.innerHeight - 8) {
+            aiSettings.style.top = Math.max(8, window.innerHeight - ar.height - 8) + 'px';
+        }
+
+        clearTimeout(S.avoidTimer);
+        S.avoidTimer = null;
+        S.avoidCooldown = performance.now() + 60000;
+    }
+
+    function closeAISettings() {
+        aiSettings.classList.remove('show');
+        S.avoidCooldown = performance.now() + 2000;
+    }
+
+    aiKeyToggle.addEventListener('click', function () {
+        aiKeyInput.type = aiKeyInput.type === 'password' ? 'text' : 'password';
+        aiKeyToggle.textContent = aiKeyInput.type === 'password' ? '👁️' : '🙈';
+    });
+
+    aiSaveBtn.addEventListener('click', function () {
+        var k = aiKeyInput.value.trim();
+        if (!k) {
+            aiStatus.textContent = '⚠️ 请填写 API Key';
+            aiStatus.className = 'cp-ai-status err';
+            return;
+        }
+        saveApiKey(k);
+        aiStatus.textContent = '✅ 已保存到本机';
+        aiStatus.className = 'cp-ai-status ok';
+        setTimeout(closeAISettings, 800);
+    });
+    
+    var aiBalanceBtn = aiSettings.querySelector('#cp-ai-balance');
+aiBalanceBtn.addEventListener('click', function () {
+    queryBalance();
+});
+
+    aiTestBtn.addEventListener('click', function () {
+        var k = aiKeyInput.value.trim() || getApiKey();
+        if (!k) {
+            aiStatus.textContent = '⚠️ 请先填 API Key';
+            aiStatus.className = 'cp-ai-status err';
+            return;
+        }
+        aiStatus.textContent = '⏳ 测试中…';
+        aiStatus.className = 'cp-ai-status';
+
+        fetchAIConfig().then(function (cfg) {
+            return fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + k
+                },
+                body: JSON.stringify({
+                    model: cfg.model,
+                    messages: [{ role: 'user', content: '回复"OK"' }],
+                    max_tokens: 10
+                })
+            });
+        }).then(function (res) {
+            if (res.ok) {
+                aiStatus.textContent = '✅ 连接成功';
+                aiStatus.className = 'cp-ai-status ok';
+            } else {
+                aiStatus.textContent = '❌ 失败 (HTTP ' + res.status + ')';
+                aiStatus.className = 'cp-ai-status err';
+            }
+        }).catch(function (err) {
+            aiStatus.textContent = '❌ 网络错误：' + (err.message || '');
+            aiStatus.className = 'cp-ai-status err';
+        });
+    });
+
+    aiClearBtn.addEventListener('click', function () {
+        if (!confirm('确定清除 API Key 和对话历史吗？')) return;
+        clearApiKey();
+        clearHistory();
+        aiKeyInput.value = '';
+        aiStatus.textContent = '🗑️ 已清除';
+        aiStatus.className = 'cp-ai-status';
+    });
+
+    aiCloseBtn.addEventListener('click', closeAISettings);
+    dlgSettingsBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openAISettings();
+    });
+    // ============================================================
+// 余额查询
+// ============================================================
+function renderBalance(data) {
+    if (!data || !data.balance_infos || data.balance_infos.length === 0) {
+        aiBalanceBox.innerHTML = '<div class="cp-ai-balance-empty">暂无余额信息</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < data.balance_infos.length; i++) {
+        var info = data.balance_infos[i];
+        var symbol = info.currency === 'CNY' ? '¥' :
+                     info.currency === 'USD' ? '$' : (info.currency + ' ');
+        html +=
+            '<div class="cp-ai-balance-main">' +
+                '<span class="cur">' + symbol + '</span>' +
+                '<span class="amt">' + info.total_balance + '</span>' +
+            '</div>' +
+            '<div class="cp-ai-balance-sub">' +
+                '<span>赠送 <strong>' + symbol + info.granted_balance + '</strong></span>' +
+                '<span>充值 <strong>' + symbol + info.topped_up_balance + '</strong></span>' +
+            '</div>';
+    }
+    html +=
+        '<div class="cp-ai-balance-status">' +
+            '<span class="dot ' + (data.is_available ? 'ok' : 'err') + '"></span>' +
+            '<span>' + (data.is_available ? '账户可用' : '余额不足或不可用') + '</span>' +
+        '</div>';
+    aiBalanceBox.innerHTML = html;
+}
+
+function queryBalance() {
+    var k = getApiKey();
+    if (!k) {
+        aiBalanceBox.innerHTML = '<div class="cp-ai-balance-empty">请先保存 API Key</div>';
+        return;
+    }
+    aiBalanceBox.innerHTML = '<div class="cp-ai-balance-empty">⏳ 查询中…</div>';
+
+    fetch('https://api.deepseek.com/user/balance', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + k,
+            'Accept': 'application/json'
+        }
+    })
+    .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    })
+    .then(function (data) {
+        renderBalance(data);
+    })
+    .catch(function (err) {
+        console.error('余额查询失败:', err);
+        aiBalanceBox.innerHTML =
+            '<div class="cp-ai-balance-empty">❌ ' + err.message + '</div>';
+    });
+}
+
+    // ============================================================
+    // 工具栏
+    // ============================================================
+    toolbar.addEventListener('click', function (e) {
+        var btn = e.target.closest('.cp-toolbar-btn');
+        if (!btn) return;
+        e.stopPropagation();
+        var act = btn.dataset.action;
+        if (act === 'love')       doPet();
+        else if (act === 'food')  doFood();
+        else if (act === 'sleep') doSleepToggle();
+        else if (act === 'dialogue') showDialogueAt();
+        else if (act === 'reset') doReset();
+    });
+    toolbar.addEventListener('mouseenter', function () { host.classList.add('show-toolbar'); });
+    toolbar.addEventListener('mouseleave', function () { host.classList.remove('show-toolbar'); });
+    restoreBtn.addEventListener('click', doShow);
+
+    // ============================================================
+    // 菜单
+    // ============================================================
+    function showMenuAt(x, y) {
+        menu.style.left = x + 'px';
+        menu.style.top  = y + 'px';
+        menu.classList.add('show');
+        submenu.classList.remove('show');
+
+        var mr = menu.getBoundingClientRect();
+        if (x + mr.width > window.innerWidth - 8) {
+            menu.style.left = Math.max(8, window.innerWidth - mr.width - 8) + 'px';
+        }
+        if (y + mr.height > window.innerHeight - 8) {
+            menu.style.top = Math.max(8, y - mr.height - 8) + 'px';
+        }
+        if (parseFloat(menu.style.top) < 8) menu.style.top = '8px';
+    }
+
+    function showSubmenu() {
+        var mr = menu.getBoundingClientRect();
+        var sx = mr.left;
+        var sy = mr.bottom + 4;
+        submenu.style.left = sx + 'px';
+        submenu.style.top  = sy + 'px';
+        submenu.classList.add('show');
+
+        soundChk.textContent = S.soundOn ? '开启' : '关闭';
+        updateScaleDisplay();
+        updateAICheck();
+
+        var sr = submenu.getBoundingClientRect();
+        if (sx + sr.width > window.innerWidth - 8) {
+            submenu.style.left = Math.max(8, window.innerWidth - sr.width - 8) + 'px';
+        }
+        if (sy + sr.height > window.innerHeight - 8) {
+            submenu.style.top = Math.max(8, mr.top - sr.height - 4) + 'px';
+        }
+    }
+
+    host.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        if (isMobile()) return;
+        showMenuAt(e.clientX, e.clientY);
+    });
+
+    menu.addEventListener('click', function (e) {
+        var item = e.target.closest('[data-menu]');
+        if (!item) return;
+        e.stopPropagation();
+        var act = item.dataset.menu;
+
+        if (act === 'more') {
+            if (submenu.classList.contains('show')) submenu.classList.remove('show');
+            else showSubmenu();
+            return;
+        }
+
+        if (act === 'love')       { doPet(); menu.classList.remove('show'); }
+        else if (act === 'food')  { doFood(); menu.classList.remove('show'); }
+        else if (act === 'dialogue') {
+            menu.classList.remove('show');
+            submenu.classList.remove('show');
+            setTimeout(function () { showDialogueAt(); }, 60);
+        }
+        else if (act === 'sleep') { doSleepToggle(); menu.classList.remove('show'); }
+        else if (act === 'spin')  { doSpin(); menu.classList.remove('show'); }
+    });
+
+    submenu.addEventListener('click', function (e) {
+        var item = e.target.closest('[data-menu]');
+        if (!item) return;
+        e.stopPropagation();
+        var act = item.dataset.menu;
+
+        if (act === 'roam')        { doRoam(); submenu.classList.remove('show'); menu.classList.remove('show'); }
+        else if (act === 'reset')  { doReset(); submenu.classList.remove('show'); menu.classList.remove('show'); }
+        else if (act === 'hide')   { doHide(); submenu.classList.remove('show'); menu.classList.remove('show'); }
+        else if (act === 'scale-up')    { doScaleUp(); }
+        else if (act === 'scale-down')  { doScaleDown(); }
+        else if (act === 'scale-reset') { doScaleReset(); }
+        else if (act === 'ai-key') {
+            submenu.classList.remove('show');
+            menu.classList.remove('show');
+            setTimeout(openAISettings, 60);
+        }
+        else if (act === 'sound') {
+            S.soundOn = !S.soundOn; saveSound();
+            soundChk.textContent = S.soundOn ? '开启' : '关闭';
+            item.classList.toggle('active', S.soundOn);
+            if (S.soundOn) { initAudio(); SFX.pet(); }
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (performance.now() - lastLongPressTime < 600) return;
+        var inMenu = e.target.closest('#ciwei-pet-menu');
+        var inSub  = e.target.closest('#ciwei-pet-submenu');
+        var inPet  = e.target.closest('#ciwei-pet');
+        if (!inMenu && !inSub && !inPet) {
+            menu.classList.remove('show');
+            submenu.classList.remove('show');
+        }
+    });
+
+    // ============================================================
+    // 彩蛋
+    // ============================================================
+    function checkBirthday() {
+        var today = new Date();
+        var md = ('0' + (today.getMonth() + 1)).slice(-2) + '-' +
+                 ('0' + today.getDate()).slice(-2);
+        var birthMD = PET_PROFILE.birthday.slice(5);
+        if (md === birthMD) {
+            setTimeout(function () {
+                if (S.sleeping || S.hidden) return;
+                showBubble(pick(MSG.birthday), 4000, false);
+                burst('🎂', 10);
+                burst('🎉', 6);
+                SFX.wake();
+            }, 3000);
+        }
+    }
+    function checkLateNight() {
+        var h = new Date().getHours();
+        if (h >= 2 && h < 5) {
+            setTimeout(function () {
+                if (S.sleeping || S.hidden) return;
+                showBubble(pick(MSG.lateNight), 3600, false);
+            }, 5000);
+        }
+    }
+    function checkLongTimeNoSee() {
+        setTimeout(function () {
+            if (S.sleeping || S.hidden) return;
+            var idleFor = Date.now() - S.last;
+            if (idleFor > 24 * 60 * 60 * 1000) {
+                showBubble(pick(MSG.longTimeNoSee), 3200, false);
+            } else {
+                showBubble('你好呀～我是小c 🦔', 2600, false);
+            }
+            burst('✨', 4);
+        }, 1200);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+            savePos(); saveSleep(); saveClicks();
+            lsSet(KEYS.last, String(S.last));
+        } else {
+            lastFrame = performance.now();
+        }
+    });
+
+    // ============================================================
+    // 恢复状态
+    // ============================================================
+    function restore() {
+        if (!lsGet(KEYS.meeting)) lsSet(KEYS.meeting, String(Date.now()));
+        // 恢复对话面板位置
+var savedDlgPos = lsGet('ciwei_pet_dlg_pos');
+if (savedDlgPos) {
+    try {
+        var p = JSON.parse(savedDlgPos);
+        if (p && typeof p.x === 'number' && typeof p.y === 'number') {
+            dialogue._savedX = p.x;
+            dialogue._savedY = p.y;
+        }
+    } catch (e) {}
+}
+// 恢复 AI Key 面板位置
+var savedAIPos = lsGet('ciwei_pet_ai_pos');
+if (savedAIPos) {
+    try {
+        var ap = JSON.parse(savedAIPos);
+        if (ap && typeof ap.x === 'number' && typeof ap.y === 'number') {
+            aiSettings._savedX = ap.x;
+            aiSettings._savedY = ap.y;
+        }
+    } catch (e) {}
+}
+
+        var savedScale = parseInt(lsGet(KEYS.scale) || String(DEFAULT_SCALE_INDEX), 10);
+        if (isNaN(savedScale) || savedScale < 0 || savedScale >= SCALES.length) {
+            savedScale = DEFAULT_SCALE_INDEX;
+        }
+        S.scaleIndex = savedScale;
+        applySize();
+        updateScaleDisplay();
+
+        var saved = null;
+        try { saved = JSON.parse(lsGet(KEYS.pos) || 'null'); } catch (e) {}
+        var s = getSize();
+        if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+            var c = clampPos(saved.x, saved.y);
+            setPos(c.x, c.y, false);
+        } else {
+            setPos(window.innerWidth - s - 24, window.innerHeight - s - 24, false);
+        }
+
+        if (lsGet(KEYS.sleeping) === 'true') {
+            S.sleeping = true;
+            host.classList.add('sleeping');
+            setImage('sleep');
+            startZzz();
+        } else {
+            host.classList.add('idle-float');
+            setImage('idle1');
+        }
+
+        S.clicks = parseInt(lsGet(KEYS.clicks) || '0', 10) || 0;
+        var last = parseInt(lsGet(KEYS.last) || '0', 10);
+        if (last > 0) S.last = last;
+
+        if (lsGet(KEYS.hidden) === 'true') {
+            S.hidden = true;
+            host.classList.add('hidden');
+            restoreBtn.classList.add('show');
+        }
+
+        S.soundOn = lsGet(KEYS.sound) !== 'false';
+        soundChk.textContent = S.soundOn ? '开启' : '关闭';
+        updateMoodColor();
+        updateAICheck();
+    }
+
+    // ============================================================
+    // 初始化
+    // ============================================================
+    function init() {
+        for (var k in IMAGES) {
+            if (IMAGES.hasOwnProperty(k)) {
+                var i = new Image();
+                i.src = IMAGES[k];
+            }
+        }
+
+        restore();
+        requestAnimationFrame(function () { host.classList.add('ready'); });
+        requestAnimationFrame(mainLoop);
+        scheduleIdleAction();
+
+        checkLongTimeNoSee();
+        checkBirthday();
+        checkLateNight();
+
+        var rt = null;
+        window.addEventListener('resize', function () {
+            clearTimeout(rt);
+            rt = setTimeout(function () {
+                applySize();
+                var c = clampPos(S.x, S.y);
+                setPos(c.x, c.y, false);
+                savePos();
+                if (S.dialogueOpen) {
+                    hideDialogue();
+                    showDialogueAt();
+                }
+                if (aiSettings.classList.contains('show')) {
+                    closeAISettings();
+                    openAISettings();
+                }
+            }, 150);
+        });
+
+        window.addEventListener('beforeunload', function () {
+            savePos(); saveSleep(); saveClicks();
+            lsSet(KEYS.last, String(S.last));
+        });
+
+        console.log('🦔 小c · 内联版 v6 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
+        console.log('🤖 AI：输入框 + 预设问题 + ai-config.json 参数');
+    }
+
     mount();
+
 })();
