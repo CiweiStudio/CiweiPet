@@ -462,9 +462,8 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     z-index: 9002;
     display: none;
     min-width: 200px; max-width: 260px;
-    max-height: 46vh;   /* 旧代码，留着兼容老手机 */
-    max-height: 46dvh;  /* ⭐ 新增：动态视口高度，防止打字时面板乱跳 */
-overflow: hidden;
+    max-height: 46vh;
+    overflow: hidden;
     flex-direction: column;
     font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
     animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
@@ -625,9 +624,8 @@ overflow: hidden;
     display: none;
     width: 240px;
     max-width: calc(100vw - 32px);
-    max-height: 60vh;   /* 旧代码，留着兼容老手机 */
-    max-height: 60dvh;  /* ⭐ 新增：动态视口高度，键盘弹起时自动收缩 */
-overflow-y: auto;
+    max-height: 60vh;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
     animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
@@ -888,7 +886,6 @@ overflow-y: auto;
     #ciwei-pet-ai-settings {
         width: 200px;
         max-height: 52vh;
-        max-height: 52dvh;
     }
     #ciwei-pet-ai-settings .cp-ai-header {
         padding: 8px 12px 8px;
