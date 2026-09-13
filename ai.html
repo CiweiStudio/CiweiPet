@@ -314,9 +314,10 @@ input[type="range"] {
             <span class="badge" id="tokenBadge">…</span>
         </div>
         <div class="token-input">
-            <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off">
+            <input type="password" id="tokenInput" placeholder="ghp_..." autocomplete="off" 
+       onkeydown="if(event.key === 'Enter'){ event.preventDefault(); this.blur(); document.getElementById('tokenSave').click(); }">
             <button class="btn" id="tokenToggle">👁️</button>
-            <button class="btn primary" id="tokenSave">保存</button>
+            <button class="btn primary" id="tokenSave" onmousedown="event.preventDefault()">保存</button>
         </div>
     </div>
 
@@ -325,9 +326,10 @@ input[type="range"] {
         <div class="card-title">💰 DeepSeek 余额</div>
         <div class="card-desc">查询你的 DeepSeek API 账户余额。Key 只存本机，不上传 GitHub。</div>
         <div class="token-input">
-            <input type="password" id="balanceKey" placeholder="sk-..." autocomplete="off">
+            <input type="password" id="balanceKey" placeholder="sk-..." autocomplete="off"
+       onkeydown="if(event.key === 'Enter'){ event.preventDefault(); this.blur(); document.getElementById('balanceQuery').click(); }">
             <button class="btn" id="balanceKeyToggle">👁️</button>
-            <button class="btn primary" id="balanceQuery">🔍 查询</button>
+            <button class="btn primary" id="balanceQuery" onmousedown="event.preventDefault()">🔍 查询</button>
         </div>
         <div id="balanceBox">
             <div class="balance-empty">填入 API Key 后点「查询」</div>

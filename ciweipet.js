@@ -234,7 +234,8 @@ function getDaysSinceBirth() {
             '<div class="cp-ai-field">' +
                 '<label class="cp-ai-label">API Key（只存本机）</label>' +
                 '<div class="cp-ai-key-row">' +
-                    '<input type="password" id="cp-ai-key" placeholder="sk-..." autocomplete="off" spellcheck="false">' +
+                    '<input type="password" id="cp-ai-key" placeholder="sk-..." autocomplete="off" spellcheck="false"
+       onkeydown="if(event.key === 'Enter'){ event.preventDefault(); this.blur(); document.getElementById('cp-ai-save').click(); }">' +
                     '<button class="cp-ai-key-toggle" id="cp-ai-key-toggle" type="button">👁️</button>' +
                 '</div>' +
                 '<div class="cp-ai-hint">从 platform.deepseek.com 获取，只存你本机浏览器</div>' +
@@ -255,7 +256,7 @@ function getDaysSinceBirth() {
             '<div class="cp-ai-actions">' +
     '<button class="cp-ai-btn" id="cp-ai-test">🔍 测试</button>' +
     '<button class="cp-ai-btn" id="cp-ai-balance">💰 余额</button>' +
-    '<button class="cp-ai-btn primary" id="cp-ai-save">💾 保存</button>' +
+    '<button class="cp-ai-btn primary" id="cp-ai-save" onmousedown="event.preventDefault()">💾 保存</button>' +
     '<button class="cp-ai-btn danger" id="cp-ai-clear">🗑️ 清除</button>' +
 '</div>' +
             '<div class="cp-ai-status" id="cp-ai-status"></div>' +
@@ -1725,17 +1726,23 @@ aiSettings.classList.add('show');
     });
 
     aiSaveBtn.addEventListener('click', function () {
-        var k = aiKeyInput.value.trim();
-        if (!k) {
-            aiStatus.textContent = '⚠️ 请填写 API Key';
-            aiStatus.className = 'cp-ai-status err';
-            return;
-        }
+    // 先让输入框失焦，收起键盘，防止按钮位移
+    if (document.activeElement) { document.activeElement.blur(); }
+    
+    var k = aiKeyInput.value.trim();
+    if (!k) {
+        aiStatus.textContent = '⚠️ 请填写 API Key';
+        aiStatus.className = 'cp-ai-status err';
+        return;
+    }
+    // 延迟一点点执行，等键盘完全收回去
+    setTimeout(function() {
         saveApiKey(k);
         aiStatus.textContent = '✅ 已保存到本机';
         aiStatus.className = 'cp-ai-status ok';
         setTimeout(closeAISettings, 800);
-    });
+    }, 150);
+});
     
     var aiBalanceBtn = aiSettings.querySelector('#cp-ai-balance');
 aiBalanceBtn.addEventListener('click', function () {
