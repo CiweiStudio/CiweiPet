@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 内联桌面宠物脚本 v6
+   🦔 Ciwei Pet · 内联桌面宠物脚本 v1
    含：AI 对话 + 输入框 + 参数从 ai-config.json 读
 ================================================================ */
 (function () {
@@ -23,13 +23,13 @@
         name: '小c',
         developer: 'LouFoong',
         birthday: '2026-09-10',
-        ipLine: '一只住在 CiweiHome 里的电子刺猬，也是开发者 LouFoong 的 IP 分身。'
+        ipLine: '一只住在 CiweiPet 里的电子刺猬，也是开发者 LouFoong 的 IP 分身。'
     };
 
     var SCALES = [0.7, 0.85, 1.0, 1.25, 1.5, 2.0];
     var DEFAULT_SCALE_INDEX = 2;
 
-    var AI_CONFIG_URL = 'https://raw.githubusercontent.com/xiaociwei01/CiweiBlog/main/ai-config.json';
+    var AI_CONFIG_URL = './ai-config.json';
     var AI_CONFIG_TTL = 5 * 60 * 1000;
     var DEFAULT_AI_CONFIG = {
         model: 'deepseek-v4-flash',
@@ -107,7 +107,7 @@
     var THROW_SPEED_THRESHOLD = 4.0;
 
     var SYSTEM_PROMPT =
-    '你叫小c，是一只可爱的电子刺猬，住在 CiweiHome 里。' +
+    '你叫小c，是一只可爱的电子刺猬，住在 CiweiPet 里。' +
     '你的开发者是 LouFoong，你的生日是 2026年9月10日。' +
     '你说话简短、俏皮、温暖，偶尔会撒娇。' +
     '回复控制在 50 字以内，不要用 markdown 格式。' +
@@ -217,9 +217,11 @@ function getDaysSinceBirth() {
         '</div>' +
         '<div id="cp-dlg-body"></div>' +
         '<div class="cp-dlg-input-area">' +
-            '<input type="text" class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off">' +
-            '<button class="cp-dlg-send" id="cp-dlg-send">发送</button>' +
-        '</div>';
+    '<button id="cp-upload-btn" style="background:transparent; border:none; color:var(--cp-panel-text-muted); font-size:16px; padding:2px 6px; cursor:pointer;" title="上传图片">📎</button>' +
+    '<input type="file" id="cp-file-input" accept="image/*" style="display:none;">' +
+    '<input type="text" class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off">' +
+    '<button class="cp-dlg-send" id="cp-dlg-send">发送</button>' +
+'</div>';
 
     var aiSettings = document.createElement('div');
     aiSettings.id = 'ciwei-pet-ai-settings';
@@ -1216,6 +1218,76 @@ function sendUserInput() {
         e.stopPropagation();
         sendUserInput();
     });
+// ================= 图片上传与压缩 =================
+var uploadBtn = dialogue.querySelector('#cp-upload-btn');
+var fileInput = dialogue.querySelector('#cp-file-input');
+
+uploadBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    
+    var apiKey = getApiKey();
+    if (!apiKey) { showBubble('我还没接上 AI 大脑，看不了图片哦～', 3000, false); return; }
+    
+    function sendImageBase64(base64) {
+        showBubble('我看看这图...', 2000, false);
+        var payload = {
+            model: 'deepseek-v4-flash',
+            messages: [
+                { role: 'system', content: '你是小c，一只可爱的电子刺猬。看到图片后简短俏皮地评价一下，控制在50字以内。' },
+                { role: 'user', content: [{ type: 'text', text: '你看这张图' }, { type: 'image_url', image_url: { url: base64 } }] }
+            ]
+        };
+        fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+            body: JSON.stringify(payload)
+        }).then(function(res) { return res.json(); }).then(function(data) {
+            if (data.choices && data.choices[0]) {
+                showBubble(data.choices[0].message.content, 5000, false);
+                pushHistory('user', '[上传了一张图片]');
+                pushHistory('assistant', data.choices[0].message.content);
+            } else {
+                showBubble('这图有点奇怪，我看不清...', 4000, false);
+            }
+        }).catch(function(err) { showBubble('看图片失败: ' + err.message, 4000, false); });
+    }
+    
+    if (file.size > 500 * 1024) {
+        var wantCompress = confirm("小c 眼睛有点小，这张图有点大 (" + (file.size/1024/1024).toFixed(1) + "MB)，要压缩一下再给我看吗？");
+        if (wantCompress) {
+            var reader = new FileReader();
+            reader.onload = function(evt) {
+                var imgObj = new Image();
+                imgObj.onload = function() {
+                    var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+                    var maxSize = 1024, width = imgObj.width, height = imgObj.height;
+                    if (width > height && width > maxSize) { height *= maxSize / width; width = maxSize; }
+                    else if (height > maxSize) { width *= maxSize / height; height = maxSize; }
+                    canvas.width = width; canvas.height = height; ctx.drawImage(imgObj, 0, 0, width, height);
+                    sendImageBase64(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                imgObj.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            var reader2 = new FileReader();
+            reader2.onload = function(evt) { sendImageBase64(evt.target.result); };
+            reader2.readAsDataURL(file);
+        }
+    } else {
+        var reader3 = new FileReader();
+        reader3.onload = function(evt) { sendImageBase64(evt.target.result); };
+        reader3.readAsDataURL(file);
+    }
+    fileInput.value = '';
+});
+// ==================================================
 
     dlgInput.addEventListener('keydown', function (e) {
         e.stopPropagation();
