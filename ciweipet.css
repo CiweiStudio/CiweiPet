@@ -697,6 +697,27 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 #ciwei-pet-ai-settings .cp-ai-key-toggle:hover {
     background: var(--cp-panel-active); color: #58a6ff;
 }
+#ciwei-pet-ai-settings .cp-ai-key-save {
+    padding: 0 14px;
+    border: 1px solid #58a6ff;
+    border-radius: 8px;
+    background: #58a6ff;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+    height: auto;
+}
+#ciwei-pet-ai-settings .cp-ai-key-save:hover {
+    background: #4a8edb;
+    border-color: #4a8edb;
+}
+#ciwei-pet-ai-settings .cp-ai-key-save:active {
+    transform: scale(.94);
+}
 #ciwei-pet-ai-settings .cp-ai-hint {
     font-size: 11px; color: var(--cp-panel-text-muted);
     margin-top: 4px; line-height: 1.5;

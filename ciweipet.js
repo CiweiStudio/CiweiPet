@@ -234,9 +234,10 @@ function getDaysSinceBirth() {
             '<div class="cp-ai-field">' +
                 '<label class="cp-ai-label">API Key（只存本机）</label>' +
                 '<div class="cp-ai-key-row">' +
-                    '<input type="password" id="cp-ai-key" placeholder="sk-..." autocomplete="off" spellcheck="false">' +
-                    '<button class="cp-ai-key-toggle" id="cp-ai-key-toggle" type="button">👁️</button>' +
-                '</div>' +
+    '<input type="password" id="cp-ai-key" placeholder="sk-..." autocomplete="off" spellcheck="false">' +
+    '<button class="cp-ai-key-toggle" id="cp-ai-key-toggle" type="button">👁️</button>' +
+    '<button class="cp-ai-key-save" id="cp-ai-key-save" type="button">保存</button>' +
+'</div>' +
                 '<div class="cp-ai-hint">从 platform.deepseek.com 获取，只存你本机浏览器</div>' +
             '</div>' +
             '<div class="cp-ai-field">' +
@@ -1723,6 +1724,15 @@ aiSettings.classList.add('show');
         aiKeyInput.type = aiKeyInput.type === 'password' ? 'text' : 'password';
         aiKeyToggle.textContent = aiKeyInput.type === 'password' ? '👁️' : '🙈';
     });
+    // 【新增】输入行里的小保存按钮（直接调用原保存逻辑）
+var aiKeySaveBtn = aiSettings.querySelector('#cp-ai-key-save');
+if (aiKeySaveBtn) {
+    aiKeySaveBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        aiSaveBtn.click();
+    });
+}
+
     // 【修复】回车键直接保存
 aiKeyInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') {
