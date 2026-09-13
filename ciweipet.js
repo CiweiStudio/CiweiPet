@@ -242,9 +242,9 @@ function getDaysSinceBirth() {
             '<div class="cp-ai-field">' +
                 '<label class="cp-ai-label">当前 AI 参数</label>' +
                 '<div class="cp-ai-params" id="cp-ai-params">加载中…</div>' +
-                '<div class="cp-ai-hint">参数在 CiweiBlog 后台修改 →' +
-                    '<a href="https://xiaociwei01.github.io/CiweiBlog/ai.html" target="_blank" style="color:#58a6ff;margin-left:4px;">去修改</a>' +
-                '</div>' +
+                '<div class="cp-ai-hint">参数在控制台修改 →' +
+    '<a href="./ai.html" target="_blank" style="color:#58a6ff;margin-left:4px;">去修改</a>' +
+'</div>' +
             '</div>' +
             '<div class="cp-ai-field">' +
     '<label class="cp-ai-label">💰 DeepSeek 余额</label>' +
