@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 内联桌面宠物样式 v6
+   🦔 Ciwei Pet · 内联桌面宠物样式 v7
    含：深浅色适配 · 光晕弱化 · 横排菜单 · 对话面板 · AI 设置 · 输入框
 ================================================================ */
 
@@ -953,4 +953,31 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     #ciwei-pet-ai-settings .cp-ai-actions {
         gap: 4px;
     }
+}
+
+/* ============================================================
+   麦克风按钮
+================================================================ */
+#ciwei-pet-dialogue #cp-voice-btn {
+    background: transparent;
+    border: none;
+    color: var(--cp-panel-text-muted);
+    font-size: 16px;
+    padding: 2px 6px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all .15s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+}
+#ciwei-pet-dialogue #cp-voice-btn:hover {
+    background: var(--cp-panel-hover);
+}
+#ciwei-pet-dialogue #cp-voice-btn.listening {
+    color: #ef4444;
+    animation: voicePulse 1s ease-in-out infinite;
+}
+@keyframes voicePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.15); }
 }

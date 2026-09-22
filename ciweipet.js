@@ -219,6 +219,7 @@ function getDaysSinceBirth() {
         '<div class="cp-dlg-input-area">' +
     '<button id="cp-upload-btn" style="background:transparent; border:none; color:var(--cp-panel-text-muted); font-size:16px; padding:2px 6px; cursor:pointer;" title="上传图片">📎</button>' +
     '<input type="file" id="cp-file-input" accept="image/*" style="display:none;">' +
+    '<button id="cp-voice-btn" style="background:transparent; border:none; color:var(--cp-panel-text-muted); font-size:16px; padding:2px 6px; cursor:pointer;" title="按住说话">🎤</button>' +
     '<input type="text" class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off">' +
     '<button class="cp-dlg-send" id="cp-dlg-send">发送</button>' +
 '</div>';
@@ -493,15 +494,18 @@ var TTS = {
     init: function () {
         if (!window.speechSynthesis) { this.enabled = false; return; }
         var self = this;
-        function loadVoices() {
+        function loadVoices(retries) {
+            retries = retries || 0;
             var vs = window.speechSynthesis.getVoices();
             for (var i = 0; i < vs.length; i++) {
                 var v = vs[i];
                 if (v.lang.indexOf('zh') === 0 || v.lang.indexOf('cmn') === 0) {
                     self.voice = v;
-                    if (v.name.indexOf('Xiaoxiao') !== -1 ||
-                        v.name.indexOf('Huihui') !== -1) break;
+                    return;
                 }
+            }
+            if (retries < 5) {
+                setTimeout(function () { loadVoices(retries + 1); }, 500);
             }
         }
         loadVoices();
@@ -512,14 +516,16 @@ var TTS = {
     unlock: function () {
         if (this.unlocked || !this.enabled) return;
         try {
-            var u = new SpeechSynthesisUtterance('');
+            var u = new SpeechSynthesisUtterance(' ');
             u.volume = 0;
+            u.lang = 'zh-CN';
             window.speechSynthesis.speak(u);
             this.unlocked = true;
         } catch (e) {}
     },
     speak: function (text) {
-        if (!this.enabled || !text || !this.unlocked) return;
+        if (!this.enabled || !text) return;
+        if (!this.unlocked) this.unlock();
         try {
             window.speechSynthesis.cancel();
             var u = new SpeechSynthesisUtterance(text);
@@ -530,6 +536,61 @@ var TTS = {
             if (this.voice) u.voice = this.voice;
             window.speechSynthesis.speak(u);
         } catch (e) {}
+    }
+};
+/* ========== 语音识别 (STT) ========== */
+var STT = {
+    recognition: null,
+    isListening: false,
+    supported: false,
+    init: function () {
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) { this.supported = false; return; }
+        this.supported = true;
+        this.recognition = new SpeechRecognition();
+        this.recognition.lang = 'zh-CN';
+        this.recognition.continuous = true;
+        this.recognition.interimResults = true;
+        this.recognition.maxAlternatives = 1;
+
+        var self = this;
+        this.recognition.onresult = function (event) {
+            var finalTranscript = '';
+            for (var i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+            }
+            if (finalTranscript) {
+                var input = document.getElementById('cp-dlg-input');
+                if (input) input.value += finalTranscript;
+            }
+        };
+        this.recognition.onerror = function (event) {
+            console.error('语音识别错误:', event.error);
+            self.isListening = false;
+            var btn = document.getElementById('cp-voice-btn');
+            if (btn) { btn.classList.remove('listening'); btn.textContent = '🎤'; }
+        };
+        this.recognition.onend = function () {
+            self.isListening = false;
+            var btn = document.getElementById('cp-voice-btn');
+            if (btn) { btn.classList.remove('listening'); btn.textContent = '🎤'; }
+        };
+    },
+    start: function () {
+        if (!this.supported || this.isListening) return;
+        try {
+            this.recognition.start();
+            this.isListening = true;
+            var btn = document.getElementById('cp-voice-btn');
+            if (btn) { btn.classList.add('listening'); btn.textContent = '🔴'; }
+        } catch (e) { console.error('启动语音识别失败:', e); }
+    },
+    stop: function () {
+        if (!this.supported || !this.isListening) return;
+        try { this.recognition.stop(); } catch (e) {}
+        this.isListening = false;
     }
 };
 
@@ -685,7 +746,8 @@ var TTS = {
     }
 
     function handleClick() {
-        saveLast(); initAudio();
+    saveLast(); initAudio();
+    TTS.unlock();
         if (S.sleeping) { wakeUp(); return; }
         if (Date.now() - S.last > 5 * 60 * 1000) S.clicks = 0;
         S.clicks++;
@@ -752,7 +814,6 @@ var TTS = {
         if (e.button && e.button !== 0) return;
 
         initAudio();
-        TTS.unlock();
         S.dragging = true; S.moved = false; S.longPressed = false; S.thrown = false;
         host.classList.add('dragging');
         host.classList.remove('idle-float', 'animating');
@@ -1261,6 +1322,36 @@ function sendUserInput() {
     
     // 不是指令，才发给 AI
     askAI(text);
+}
+/* ========== 按住说话 ========== */
+function bindVoiceInput() {
+    var voiceBtn = dialogue.querySelector('#cp-voice-btn');
+    if (!voiceBtn) return;
+
+    if (!STT.supported) {
+        voiceBtn.style.display = 'none';
+        return;
+    }
+
+    voiceBtn.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        STT.start();
+    });
+
+    voiceBtn.addEventListener('pointerup', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        STT.stop();
+    });
+
+    voiceBtn.addEventListener('pointerleave', function (e) {
+        STT.stop();
+    });
+
+    voiceBtn.addEventListener('pointercancel', function (e) {
+        STT.stop();
+    });
 }
 
     dlgSend.addEventListener('click', function (e) {
@@ -2264,6 +2355,8 @@ if (savedAIPos) {
         }
         
         TTS.init();
+        STT.init();
+        bindVoiceInput();
         restore();
         requestAnimationFrame(function () { host.classList.add('ready'); });
         requestAnimationFrame(mainLoop);

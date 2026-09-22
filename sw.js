@@ -1,10 +1,10 @@
 /* ============================================================
-   Ciweipet Service Worker · v6
+   Ciweipet Service Worker · v7
    缓存：图标 + 主页资源 + 刺猬资源
    策略：HTML → 网络优先（保证内容最新）
         静态资源 → 缓存优先（快）
 ================================================================ */
-var CACHE_NAME = 'ciweipet-v6';
+var CACHE_NAME = 'ciweipet-v7';
 var STATIC_ASSETS = [
     './',
     './index.html',
