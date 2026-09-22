@@ -485,6 +485,53 @@ var dlgDrag = {
         talk:   function () { tone({ freq: 700, dur: .08, type: 'triangle', gain: .2, slideTo: 900 }); },
         throw:  function () { tone({ freq: 1000, dur: .25, gain: .25, slideTo: 200 }); }
     };
+    /* ========== 语音模块 ========== */
+var TTS = {
+    enabled: true,
+    voice: null,
+    unlocked: false,
+    init: function () {
+        if (!window.speechSynthesis) { this.enabled = false; return; }
+        var self = this;
+        function loadVoices() {
+            var vs = window.speechSynthesis.getVoices();
+            for (var i = 0; i < vs.length; i++) {
+                var v = vs[i];
+                if (v.lang.indexOf('zh') === 0 || v.lang.indexOf('cmn') === 0) {
+                    self.voice = v;
+                    if (v.name.indexOf('Xiaoxiao') !== -1 ||
+                        v.name.indexOf('Huihui') !== -1) break;
+                }
+            }
+        }
+        loadVoices();
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+    },
+    unlock: function () {
+        if (this.unlocked || !this.enabled) return;
+        try {
+            var u = new SpeechSynthesisUtterance('');
+            u.volume = 0;
+            window.speechSynthesis.speak(u);
+            this.unlocked = true;
+        } catch (e) {}
+    },
+    speak: function (text) {
+        if (!this.enabled || !text || !this.unlocked) return;
+        try {
+            window.speechSynthesis.cancel();
+            var u = new SpeechSynthesisUtterance(text);
+            u.lang = 'zh-CN';
+            u.rate = 1.1;
+            u.pitch = 1.15;
+            u.volume = 0.9;
+            if (this.voice) u.voice = this.voice;
+            window.speechSynthesis.speak(u);
+        } catch (e) {}
+    }
+};
 
     function showBubble(text, duration, typewriter) {
         duration = duration || 2600;
@@ -705,6 +752,7 @@ var dlgDrag = {
         if (e.button && e.button !== 0) return;
 
         initAudio();
+        TTS.unlock();
         S.dragging = true; S.moved = false; S.longPressed = false; S.thrown = false;
         host.classList.add('dragging');
         host.classList.remove('idle-float', 'animating');
@@ -1591,6 +1639,7 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
                 ? json.choices[0].message.content
                 : '（没听清…）';
             showBubble(reply, 5000, false);
+            TTS.speak(reply);
             pushHistory('assistant', reply);
             setFace('happy', 2500);
             S.mood = clamp(S.mood + 3, 0, 100);
@@ -1627,6 +1676,7 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
         }).then(function (fullText) {
             if (!fullText) return;
             showBubble(fullText, 60000, false);
+            TTS.speak(fullText);
             pushHistory('assistant', fullText);
             setFace('happy', 2500);
             S.mood = clamp(S.mood + 3, 0, 100);
@@ -2045,6 +2095,81 @@ function queryBalance() {
             burst('✨', 4);
         }, 1200);
     }
+/* ========== 主动说话 ========== */
+var proactiveState = {
+    lastTime: 0,
+    minInterval: 3 * 60 * 1000,
+    idleThreshold: 5 * 60 * 1000
+};
+
+function proactiveSpeak() {
+    var apiKey = getApiKey();
+    var hour = new Date().getHours();
+    var idleMin = Math.floor((Date.now() - S.last) / 60000);
+
+    if (!apiKey) {
+        var localLines = [
+            '你去哪了呀…好久没理我了',
+            '我有点无聊，陪陪我呗',
+            '在忙什么呢？',
+            '唔…我在这里等你呢'
+        ];
+        var msg = pick(localLines);
+        showBubble(msg, 3200, false);
+        TTS.speak(msg);
+        setFace('surprised', 2000);
+        burst('💭', 2);
+        return;
+    }
+
+    fetchAIConfig().then(function (cfg) {
+        var prompt =
+            '你是小c，一只刺猬电子宠物。' +
+            '现在是' + hour + '点，用户已经' + idleMin + '分钟没理你了。' +
+            '请以第一人称主动找用户搭话，一句话，不超过30字，' +
+            '要符合刺猬性格，可以撒娇或关心用户，不要markdown。';
+
+        var body = {
+            model: cfg.model || 'deepseek-v4-flash',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.9,
+            max_tokens: 100,
+            stream: false
+        };
+
+        fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + apiKey
+            },
+            body: JSON.stringify(body)
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+            if (json.choices && json.choices[0]) {
+                var reply = json.choices[0].message.content;
+                showBubble(reply, 5200, false);
+                TTS.speak(reply);
+                setFace('happy', 2500);
+                burst('💬', 2);
+                pushHistory('assistant', reply);
+                S.mood = clamp(S.mood + 3, 0, 100);
+                updateMoodColor();
+            }
+        })
+        .catch(function (err) { console.error('主动说话失败:', err); });
+    });
+}
+
+/* 心跳：每30秒评估一次 */
+setInterval(function () {
+    if (S.sleeping || S.hidden || S.dialogueOpen || S.aiThinking) return;
+    if (Date.now() - S.last < proactiveState.idleThreshold) return;
+    if (Date.now() - proactiveState.lastTime < proactiveState.minInterval) return;
+    proactiveState.lastTime = Date.now();
+    proactiveSpeak();
+}, 30000);
 
     document.addEventListener('visibilitychange', function () {
         if (document.hidden) {
@@ -2137,7 +2262,8 @@ if (savedAIPos) {
                 i.src = IMAGES[k];
             }
         }
-
+        
+        TTS.init();
         restore();
         requestAnimationFrame(function () { host.classList.add('ready'); });
         requestAnimationFrame(mainLoop);
