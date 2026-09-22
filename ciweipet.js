@@ -567,11 +567,25 @@ var STT = {
             }
         };
         this.recognition.onerror = function (event) {
-            console.error('语音识别错误:', event.error);
-            self.isListening = false;
-            var btn = document.getElementById('cp-voice-btn');
-            if (btn) { btn.classList.remove('listening'); btn.textContent = '🎤'; }
-        };
+    console.error('语音识别错误:', event.error);
+    var msgs = {
+        'not-allowed': '麦克风权限被拒绝',
+        'service-not-allowed': '浏览器不支持语音服务',
+        'network': '网络问题，连不上语音服务',
+        'no-speech': '没听到声音',
+        'audio-capture': '找不到麦克风',
+        'aborted': '识别被中止',
+        'language-not-supported': '不支持中文识别'
+    };
+    var msg = msgs[event.error] || ('语音出错: ' + event.error);
+    showBubble(msg, 3000, false);
+    self.isListening = false;
+    var btn = document.getElementById('cp-voice-btn');
+    if (btn) { btn.classList.remove('listening'); btn.textContent = '🎤'; }
+};
+this.recognition.onstart = function () {
+    showBubble('🎤 我在听...', 1500, false);
+};
         this.recognition.onend = function () {
             self.isListening = false;
             var btn = document.getElementById('cp-voice-btn');
