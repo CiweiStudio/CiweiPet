@@ -219,7 +219,6 @@ function getDaysSinceBirth() {
         '<div class="cp-dlg-input-area">' +
     '<button id="cp-upload-btn" style="background:transparent; border:none; color:var(--cp-panel-text-muted); font-size:16px; padding:2px 6px; cursor:pointer;" title="上传图片">📎</button>' +
     '<input type="file" id="cp-file-input" accept="image/*" style="display:none;">' +
-    '<button id="cp-voice-btn" style="background:transparent; border:none; color:var(--cp-panel-text-muted); font-size:16px; padding:2px 6px; cursor:pointer;" title="按住说话">🎤</button>' +
     '<input type="text" class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off">' +
     '<button class="cp-dlg-send" id="cp-dlg-send">发送</button>' +
 '</div>';
@@ -538,97 +537,33 @@ var TTS = {
         } catch (e) {}
     }
 };
-/* ========== 语音识别 (STT) ========== */
-var STT = {
-    recognition: null,
-    isListening: false,
-    supported: false,
-    init: function () {
-        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) { this.supported = false; return; }
-        this.supported = true;
-        this.recognition = new SpeechRecognition();
-        this.recognition.lang = 'zh-CN';
-        this.recognition.continuous = true;
-        this.recognition.interimResults = true;
-        this.recognition.maxAlternatives = 1;
 
-        var self = this;
-        this.recognition.onresult = function (event) {
-            var finalTranscript = '';
-            for (var i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                }
-            }
-            if (finalTranscript) {
-                var input = document.getElementById('cp-dlg-input');
-                if (input) input.value += finalTranscript;
-            }
-        };
-        this.recognition.onerror = function (event) {
-    console.error('语音识别错误:', event.error);
-    var msgs = {
-        'not-allowed': '麦克风权限被拒绝',
-        'service-not-allowed': '浏览器不支持语音服务',
-        'network': '网络问题，连不上语音服务',
-        'no-speech': '没听到声音',
-        'audio-capture': '找不到麦克风',
-        'aborted': '识别被中止',
-        'language-not-supported': '不支持中文识别'
-    };
-    var msg = msgs[event.error] || ('语音出错: ' + event.error);
-    showBubble(msg, 3000, false);
-    self.isListening = false;
-    var btn = document.getElementById('cp-voice-btn');
-    if (btn) { btn.classList.remove('listening'); btn.textContent = '🎤'; }
-};
-this.recognition.onstart = function () {
-    showBubble('🎤 我在听...', 1500, false);
-};
-        this.recognition.onend = function () {
-            self.isListening = false;
-            var btn = document.getElementById('cp-voice-btn');
-            if (btn) { btn.classList.remove('listening'); btn.textContent = '🎤'; }
-        };
-    },
-    start: function () {
-        if (!this.supported || this.isListening) return;
-        try {
-            this.recognition.start();
-            this.isListening = true;
-            var btn = document.getElementById('cp-voice-btn');
-            if (btn) { btn.classList.add('listening'); btn.textContent = '🔴'; }
-        } catch (e) { console.error('启动语音识别失败:', e); }
-    },
-    stop: function () {
-        if (!this.supported || !this.isListening) return;
-        try { this.recognition.stop(); } catch (e) {}
-        this.isListening = false;
+    function showBubble(text, duration, typewriter, noSpeak) {
+    duration = duration || 2600;
+    typewriter = typewriter !== false;
+    clearTimeout(S.bubbleTimer);
+    clearInterval(S.typeTimer);
+    var needWrap = text.length > 14;
+    bubble.classList.toggle('long', needWrap);
+    bubble.classList.add('show');
+    if (!typewriter) { bubble.textContent = text; }
+    else {
+        bubble.textContent = '';
+        var i = 0;
+        S.typeTimer = setInterval(function () {
+            bubble.textContent += text[i++];
+            if (i >= text.length) clearInterval(S.typeTimer);
+        }, 30);
     }
-};
+    S.bubbleTimer = setTimeout(function () {
+        bubble.classList.remove('show');
+    }, duration + (typewriter ? text.length * 30 : 0));
 
-    function showBubble(text, duration, typewriter) {
-        duration = duration || 2600;
-        typewriter = typewriter !== false;
-        clearTimeout(S.bubbleTimer);
-        clearInterval(S.typeTimer);
-        var needWrap = text.length > 14;
-        bubble.classList.toggle('long', needWrap);
-        bubble.classList.add('show');
-        if (!typewriter) { bubble.textContent = text; }
-        else {
-            bubble.textContent = '';
-            var i = 0;
-            S.typeTimer = setInterval(function () {
-                bubble.textContent += text[i++];
-                if (i >= text.length) clearInterval(S.typeTimer);
-            }, 30);
-        }
-        S.bubbleTimer = setTimeout(function () {
-            bubble.classList.remove('show');
-        }, duration + (typewriter ? text.length * 30 : 0));
+    // ⭐ 自动朗读（除非明确要求不读）
+    if (!noSpeak && text && text.length < 200) {
+        TTS.speak(text);
     }
+}
     function showBubbleStream(text) {
         clearTimeout(S.bubbleTimer);
         clearInterval(S.typeTimer);
@@ -1260,10 +1195,10 @@ this.recognition.onstart = function () {
         SFX.talk();
 
         if (d.ai) {
-            if (S.aiThinking) {
-                showBubble('我还在想上一个问题呢…', 1500, false);
-                return;
-            }
+    if (S.aiThinking) {
+        showBubble('我还在想上一个问题呢…', 1500, false, true);
+        return;
+    }
             var prompt;
             if (d.ai === 'joke') prompt = '给我讲一个好笑的笑话';
             else prompt = '随便说点什么吧，我有点无聊';
@@ -1326,9 +1261,9 @@ function sendUserInput() {
     var text = dlgInput.value.trim();
     if (!text) return;
     if (S.aiThinking) {
-        showBubble('我还在想上一个问题呢…', 1500, false);
-        return;
-    }
+    showBubble('我还在想上一个问题呢…', 1500, false, true);
+    return;
+}
     dlgInput.value = '';
     
     // ⭐ 先判断是不是本地指令，是就拦截，不消耗 Token
@@ -1336,36 +1271,6 @@ function sendUserInput() {
     
     // 不是指令，才发给 AI
     askAI(text);
-}
-/* ========== 按住说话 ========== */
-function bindVoiceInput() {
-    var voiceBtn = dialogue.querySelector('#cp-voice-btn');
-    if (!voiceBtn) return;
-
-    if (!STT.supported) {
-        voiceBtn.style.display = 'none';
-        return;
-    }
-
-    voiceBtn.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        STT.start();
-    });
-
-    voiceBtn.addEventListener('pointerup', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        STT.stop();
-    });
-
-    voiceBtn.addEventListener('pointerleave', function (e) {
-        STT.stop();
-    });
-
-    voiceBtn.addEventListener('pointercancel', function (e) {
-        STT.stop();
-    });
 }
 
     dlgSend.addEventListener('click', function (e) {
@@ -1718,13 +1623,13 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
                 body.reasoning_effort = cfg.reasoningEffort;
             }
 
-            if (body.stream) {
-                showBubbleStream('💭 想想…');
-                streamAI(apiKey, body, userInput);
-            } else {
-                showBubble('💭 想想…', 30000, false);
-                fetchAI(apiKey, body, userInput);
-            }
+       if (body.stream) {
+    showBubbleStream('💭 想想…');
+    streamAI(apiKey, body, userInput);
+} else {
+    showBubble('💭 想想…', 30000, false, true);
+    fetchAI(apiKey, body, userInput);
+}     
         });
     }
 
@@ -1744,7 +1649,6 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
                 ? json.choices[0].message.content
                 : '（没听清…）';
             showBubble(reply, 5000, false);
-            TTS.speak(reply);
             pushHistory('assistant', reply);
             setFace('happy', 2500);
             S.mood = clamp(S.mood + 3, 0, 100);
@@ -1781,7 +1685,6 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
         }).then(function (fullText) {
             if (!fullText) return;
             showBubble(fullText, 60000, false);
-            TTS.speak(fullText);
             pushHistory('assistant', fullText);
             setFace('happy', 2500);
             S.mood = clamp(S.mood + 3, 0, 100);
@@ -2369,8 +2272,6 @@ if (savedAIPos) {
         }
         
         TTS.init();
-        STT.init();
-        bindVoiceInput();
         restore();
         requestAnimationFrame(function () { host.classList.add('ready'); });
         requestAnimationFrame(mainLoop);
