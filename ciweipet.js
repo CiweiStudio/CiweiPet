@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 内联桌面宠物脚本 v12
+   🦔 Ciwei Pet · 内联桌面宠物脚本 v13
    含：AI 对话 + 输入框 + 参数从 ai-config.json 读
 
    ─────────────────────────────────────────────
@@ -246,11 +246,14 @@ function getDaysSinceBirth() {
             '<span class="cp-sub-check" id="cp-sound-check">开启</span>' +
         '</div>' +
         '<div class="cp-sub-item" data-menu="ai-key">' +
-            '🔑 <span>AI Key</span>' +
-            '<span class="cp-sub-check" id="cp-ai-check">未配置</span>' +
-        '</div>' +
-        '<div class="cp-sep"></div>' +
-        '<div class="cp-sub-item danger" data-menu="hide">🙈 <span>隐藏</span></div>';
+    '🔑 <span>AI Key</span>' +
+    '<span class="cp-sub-check" id="cp-ai-check">未配置</span>' +
+'</div>' +
+'<div class="cp-sub-item" data-menu="usage">' +
+    '💰 <span>消费统计</span>' +
+'</div>' +
+'<div class="cp-sep"></div>' +
+'<div class="cp-sub-item danger" data-menu="hide">🙈 <span>隐藏</span></div>';
 
     // ⭐ 对话面板（含输入区）
     var dialogue = document.createElement('div');
@@ -308,6 +311,15 @@ function getDaysSinceBirth() {
             '<div class="cp-ai-status" id="cp-ai-status"></div>' +
         '</div>';
 
+var usagePanel = document.createElement('div');
+usagePanel.id = 'ciwei-pet-usage-panel';
+usagePanel.innerHTML =
+    '<div class="cp-usage-header">' +
+        '<span class="cp-usage-title">💰 消费统计</span>' +
+        '<button class="cp-usage-close" id="cp-usage-close">✕</button>' +
+    '</div>' +
+    '<div class="cp-usage-body" id="cp-usage-body"></div>';
+
     var restoreBtn = document.createElement('div');
     restoreBtn.id = 'ciwei-pet-restore';
     restoreBtn.textContent = '🦔';
@@ -319,6 +331,7 @@ function getDaysSinceBirth() {
         document.body.appendChild(submenu);
         document.body.appendChild(dialogue);
         document.body.appendChild(aiSettings);
+        document.body.appendChild(usagePanel);
         document.body.appendChild(restoreBtn);
         document.body.appendChild(host);
         init();
@@ -1856,9 +1869,10 @@ setFace('happy', 2500);
     // AI Key 面板
     // ============================================================
     function openAISettings() {
-        aiKeyInput.value = getApiKey();
-        aiStatus.textContent = '';
-        aiStatus.className = 'cp-ai-status';
+    if (typeof closeUsagePanel === 'function') closeUsagePanel();
+    aiKeyInput.value = getApiKey();
+    aiStatus.textContent = '';
+    aiStatus.className = 'cp-ai-status';
 
         aiParamsEl.innerHTML = '<span style="color:var(--cp-panel-text-muted);">加载中…</span>';
 fetchAIConfig().then(function (cfg) {
@@ -1998,6 +2012,8 @@ aiBalanceBtn.addEventListener('click', function () {
     });
 
     aiCloseBtn.addEventListener('click', closeAISettings);
+    var usageCloseBtn = usagePanel.querySelector('#cp-usage-close');
+if (usageCloseBtn) usageCloseBtn.addEventListener('click', closeUsagePanel);
     dlgSettingsBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         openAISettings();
@@ -2031,6 +2047,54 @@ function renderBalance(data) {
             '<span>' + (data.is_available ? '账户可用' : '余额不足或不可用') + '</span>' +
         '</div>';
     aiBalanceBox.innerHTML = html;
+}
+
+/* ========== 💰 消费面板 ========== */
+function renderUsagePanel() {
+    var d = getUsageStats();
+    var todayTokens = (d.todayTokens || 0).toLocaleString();
+    var totalTokens = (d.totalTokens || 0).toLocaleString();
+    var todayCost = (d.todayCost || 0).toFixed(4);
+    var totalCost = (d.totalCost || 0).toFixed(4);
+    var html =
+        '<div class="cp-usage-block">' +
+            '<div class="cp-usage-label">今日消耗</div>' +
+            '<div class="cp-usage-main">' +
+                '<span class="cp-usage-num">' + todayTokens + '</span>' +
+                '<span class="cp-usage-unit">tokens</span>' +
+            '</div>' +
+            '<div class="cp-usage-cost">¥ ' + todayCost + '</div>' +
+        '</div>' +
+        '<div class="cp-usage-block">' +
+            '<div class="cp-usage-label">累计消耗</div>' +
+            '<div class="cp-usage-main">' +
+                '<span class="cp-usage-num">' + totalTokens + '</span>' +
+                '<span class="cp-usage-unit">tokens</span>' +
+            '</div>' +
+            '<div class="cp-usage-cost">¥ ' + totalCost + '</div>' +
+        '</div>';
+    var body = usagePanel.querySelector('#cp-usage-body');
+    if (body) body.innerHTML = html;
+}
+
+function openUsagePanel() {
+    if (typeof closeAISettings === 'function') closeAISettings();
+    renderUsagePanel();
+    usagePanel.classList.add('show');
+    var w = usagePanel.offsetWidth;
+    var h = usagePanel.offsetHeight;
+    var px = Math.max(8, (window.innerWidth - w) / 2);
+    var py = Math.max(8, (window.innerHeight - h) / 2);
+    usagePanel.style.left = px + 'px';
+    usagePanel.style.top  = py + 'px';
+    clearTimeout(S.avoidTimer);
+    S.avoidTimer = null;
+    S.avoidCooldown = performance.now() + 60000;
+}
+
+function closeUsagePanel() {
+    usagePanel.classList.remove('show');
+    S.avoidCooldown = performance.now() + 2000;
 }
 
 function queryBalance() {
@@ -2162,11 +2226,16 @@ function queryBalance() {
         else if (act === 'scale-down')  { doScaleDown(); }
         else if (act === 'scale-reset') { doScaleReset(); }
         else if (act === 'ai-key') {
-            submenu.classList.remove('show');
-            menu.classList.remove('show');
-            setTimeout(openAISettings, 60);
-        }
-        else if (act === 'sound') {
+    submenu.classList.remove('show');
+    menu.classList.remove('show');
+    setTimeout(openAISettings, 60);
+}
+else if (act === 'usage') {
+    submenu.classList.remove('show');
+    menu.classList.remove('show');
+    setTimeout(openUsagePanel, 60);
+}
+else if (act === 'sound') {
             S.soundOn = !S.soundOn; saveSound();
             soundChk.textContent = S.soundOn ? '开启' : '关闭';
             item.classList.toggle('active', S.soundOn);
@@ -2507,7 +2576,7 @@ if (savedAIPos) {
             lsSet(KEYS.last, String(S.last));
         });
 
-        console.log('🦔 小c · 内联版 v12 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
+        console.log('🦔 小c · 内联版 v13 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
         console.log('🤖 AI：输入框 + 预设问题 + ai-config.json 参数');
     }
 
@@ -2536,8 +2605,9 @@ mount();
        v8  · 主动说话、语音朗读
        v11 · GitHub 查询、状态可视化
        v12 · 消费监控、节日彩蛋、Cache 优化、特别的日子
+       v13 · 消费统计面板
 ─────────────────────────────
-       现共 2544 行，取自MT管理器。
+       现共 2612 行，取自MT管理器。
        一切归零，重新出发。
        ============================================================ */
 
