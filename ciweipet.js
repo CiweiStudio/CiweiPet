@@ -1,6 +1,31 @@
 /* ============================================================
-   🦔 Ciwei Pet · 内联桌面宠物脚本 v1
+   🦔 Ciwei Pet · 内联桌面宠物脚本 v12
    含：AI 对话 + 输入框 + 参数从 ai-config.json 读
+
+   ─────────────────────────────────────────────
+   📝 开发者的话（LouFoong，2026）
+   ─────────────────────────────────────────────
+   如果你正在阅读这段代码，那你一定是个好奇的人。
+
+   小c 诞生于 2026年9月10日，从 CiweiHome 里一个
+   iframe 小方框，独立成了 CiweiStudio 的第一款旗舰作品。
+
+   全部代码在一部安卓手机上、用 MT 管理器手写完成，
+   没有电脑，没有 IDE，没有本地服务器。
+   经历过 1 个月迭代、无数次白屏重写。
+
+   如果你看到这段注释，请记住：
+   一个 18 岁的少年，曾经用一部手机，
+   造出了一只电子刺猬🦔。
+
+   —— LouFoong
+
+   ─────────────────────────────────────────────
+   💌 特别的日子：12月26日
+   ─────────────────────────────────────────────
+   这一天，小c 会替某个人，说一句特别的话。
+   至于是谁——只有它和我知道。
+   ─────────────────────────────────────────────
 ================================================================ */
 (function () {
     'use strict';
@@ -56,6 +81,7 @@
         { id:'annoyed',   icon:'🌧️', q:'今天好烦',         a:'那把我戳一顿吧，我不生气。', face:'angry' },
         { id:'ai-joke',   icon:'😂', q:'讲个笑话',         a:'（正在呼叫 AI…）', face:'happy', ai:'joke' },
         { id:'ai-chat',   icon:'🤖', q:'陪我聊聊天',       a:'（正在呼叫 AI…）', face:'idle1', ai:'chat' },
+        { id:'github',    icon:'🐙', q:'看看我的 GitHub',  a:'（正在呼叫 GitHub…）', face:'happy', ai:'github' },
         { id:'secret',    icon:'🔒', q:'你的秘密是什么？', a:'你居然找到了这个彩蛋！{developer} 说你可以截图此页面找他领钱💰。', face:'surprised', hidden:true }
     ];
 
@@ -84,6 +110,16 @@
         birthday: ['🎂 今天是我的生日！', '🎉 今天我过生日～'],
         thrown: ['哇啊啊——', '💫 飞起来了！', '要摔了要摔了！']
     };
+    
+var FESTIVALS = {
+    '01-01': { msg: '🎊 新年快乐！新的一年也要好好的哦', voice: '新年快乐' },
+    '02-14': { msg: '💝 今天是情人节…有人陪着你吗？', voice: '情人节快乐' },
+    '03-08': { msg: '🌸 今天是妇女节，记得给妈妈打个电话', voice: '节日快乐' },
+    '05-01': { msg: '💪 劳动节快乐！今天休息一下吧', voice: '劳动节快乐' },
+    '06-01': { msg: '🍭 儿童节快乐！大朋友也要开心', voice: '儿童节快乐' },
+    '12-24': { msg: '🎄 平安夜快乐～', voice: '平安夜快乐' },
+    '12-25': { msg: '🎁 圣诞快乐！', voice: '圣诞快乐' }
+};
 
     var KEYS = {
         pos:     'ciwei_pet_position',
@@ -97,7 +133,8 @@
         asked:   'ciwei_pet_asked_dialogues',
         secret:  'ciwei_pet_secret_unlocked',
         aiKey:   'ciwei_ai_key',
-        aiHist:  'ciwei_pet_ai_history'
+        aiHist:  'ciwei_pet_ai_history',
+        usage:   'ciwei_pet_usage_stats'
     };
 
     var SIZE_DESKTOP = 120;
@@ -106,9 +143,18 @@
     var MOVE_THRESHOLD = 6;
     var THROW_SPEED_THRESHOLD = 4.0;
 
+/* ============================================================
+       🧠 小c 的灵魂（SYSTEM_PROMPT）
+       ============================================================
+       这段提示词决定了小c 的性格。
+       改一个字，它的脾气就变一分。
+       如果你想让你的小c 变成别的样子，改这里就行。
+       —— LouFoong
+       ============================================================ */
     var SYSTEM_PROMPT =
     '你叫小c，是一只可爱的电子刺猬，住在 CiweiPet 里。' +
     '你的开发者是 LouFoong，你的生日是 2026年9月10日。' +
+    '你把 LouFoong 当作你的爸爸，平时叫他“爸爸”。' +
     '你说话简短、俏皮、温暖，偶尔会撒娇。' +
     '回复控制在 50 字以内，不要用 markdown 格式。' +
     '不要堆砌 emoji，最多一个。' +
@@ -388,17 +434,17 @@ var dlgDrag = {
     function doScaleUp() {
         if (S.scaleIndex >= SCALES.length - 1) { showBubble(pick(MSG.scaleMax), 1400, false); return; }
         S.scaleIndex++; applyScale(); initAudio(); SFX.pet();
-        burst('✨', 3); showBubble('🔍➕ ' + getScalePercent() + '%', 1200, false);
+        burst('✨', 3); showBubble('🔍➕ ' + getScalePercent() + '%', 1200, false, true);
     }
     function doScaleDown() {
         if (S.scaleIndex <= 0) { showBubble(pick(MSG.scaleMin), 1400, false); return; }
         S.scaleIndex--; applyScale(); initAudio(); SFX.pet();
-        burst('✨', 3); showBubble('🔍➖ ' + getScalePercent() + '%', 1200, false);
+        burst('✨', 3); showBubble('🔍➖ ' + getScalePercent() + '%', 1200, false, true);
     }
     function doScaleReset() {
         if (S.scaleIndex === DEFAULT_SCALE_INDEX) { showBubble('已经是默认大小～', 1200, false); return; }
         S.scaleIndex = DEFAULT_SCALE_INDEX; applyScale(); initAudio(); SFX.pet();
-        burst('📏', 3); showBubble('📏 恢复 100%', 1400, false);
+        burst('📏', 3); showBubble('📏 恢复 100%', 1400, false, true);
     }
 
     function setPos(x, y, animate) {
@@ -1199,8 +1245,12 @@ var TTS = {
         showBubble('我还在想上一个问题呢…', 1500, false, true);
         return;
     }
-            var prompt;
-            if (d.ai === 'joke') prompt = '给我讲一个好笑的笑话';
+    if (d.ai === 'github') {
+        fetchGitHub();
+        return;
+    }
+    var prompt;
+    if (d.ai === 'joke') prompt = '给我讲一个好笑的笑话';
             else prompt = '随便说点什么吧，我有点无聊';
             askAI(prompt);
             return;
@@ -1235,8 +1285,30 @@ var TTS = {
     });
 
     // ⭐ 用户自由输入
-    // 文本指令拦截（不消耗 Token）
+function fetchGitHub() {
+    showBubble('我去翻翻你的仓库…', 3000, false, true);
+    fetch('https://api.github.com/users/xiaociwei01')
+    .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    })
+    .then(function(data) {
+        var msg = '你现在有 ' + data.public_repos + ' 个公开仓库，' + data.followers + ' 个粉丝，最早在 ' + data.created_at.slice(0, 10) + ' 加入的 GitHub 哦！';
+        showBubble(msg, 6000, false);
+        setFace('surprised', 2500);
+        burst('🐙', 4);
+    })
+    .catch(function(err) {
+        showBubble('查询失败了：' + err.message, 4000, false);
+        setFace('angry', 2000);
+    });
+}
+     // 文本指令拦截（不消耗 Token）
 function checkKeywordsAndAction(text) {
+    if (text.toLowerCase().includes('github')) {
+    fetchGitHub();
+    return true;
+    }
     if (text.includes('转两圈') || text.includes('转个圈')) {
         doSpin();
         showBubble('嗡嗡！看我转两圈~ 头晕啦！', 2000, false);
@@ -1294,7 +1366,7 @@ fileInput.addEventListener('change', function (e) {
     if (!apiKey) { showBubble('我还没接上 AI 大脑，看不了图片哦～', 3000, false); return; }
     
     function sendImageBase64(base64) {
-        showBubble('我看看这图...', 2000, false);
+        showBubble('我看看这图...', 2000, false, true);
         var payload = {
             model: 'deepseek-v4-flash',
             messages: [
@@ -1527,6 +1599,34 @@ aiHeader.addEventListener('pointercancel', function (e) {
             });
     }
 
+/* ========== 💰 消费统计 ========== */
+function getUsageStats() {
+    var raw = lsGet(KEYS.usage);
+    var today = new Date().toISOString().slice(0, 10);
+    if (!raw) return { totalTokens: 0, totalCost: 0, todayTokens: 0, todayCost: 0, todayDate: today };
+    try {
+        var d = JSON.parse(raw);
+        if (d.todayDate !== today) { d.todayTokens = 0; d.todayCost = 0; d.todayDate = today; }
+        return d;
+    } catch (e) {
+        return { totalTokens: 0, totalCost: 0, todayTokens: 0, todayCost: 0, todayDate: today };
+    }
+}
+function recordUsage(promptTokens, completionTokens, cacheHitTokens) {
+    var d = getUsageStats();
+    var today = new Date().toISOString().slice(0, 10);
+    var hit = cacheHitTokens || 0;
+    var miss = Math.max(0, (promptTokens || 0) - hit);
+    var out = completionTokens || 0;
+    var cost = hit / 1000000 * 0.1 + miss / 1000000 * 1.0 + out / 1000000 * 2.0;
+    if (d.todayDate !== today) { d.todayTokens = 0; d.todayCost = 0; d.todayDate = today; }
+    d.totalTokens = (d.totalTokens || 0) + hit + miss + out;
+    d.totalCost = (d.totalCost || 0) + cost;
+    d.todayTokens += hit + miss + out;
+    d.todayCost += cost;
+    lsSet(KEYS.usage, JSON.stringify(d));
+}
+
     function getApiKey() { return lsGet(KEYS.aiKey) || ''; }
     function saveApiKey(k) { lsSet(KEYS.aiKey, k); updateAICheck(); }
     function clearApiKey() { lsSet(KEYS.aiKey, ''); updateAICheck(); }
@@ -1603,25 +1703,32 @@ aiHeader.addEventListener('pointercancel', function (e) {
             // 获取当前真实时间，让 AI 有“时间感知”
 var now = new Date();
 var timeStr = now.toLocaleString('zh-CN', { hour12: false });
-var timeContext = "\n【系统提示：当前真实时间是 " + timeStr + "。如果用户问时间、年龄、多久了，请根据此信息回答。】";
-
-var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
+// ⚡ Cache 优化：SYSTEM_PROMPT 保持绝对稳定，时间信息作为尾部独立消息
+var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
             for (var i = 0; i < recent.length; i++) {
                 messages.push({ role: recent[i].role, content: recent[i].content });
             }
+            messages.push({
+                role: 'system',
+                content: '【当前真实时间：' + timeStr + '】'
+            });
             messages.push({ role: 'user', content: userInput });
 
             var body = {
-                model: cfg.model || 'deepseek-v4-flash',
-                messages: messages,
-                temperature: typeof cfg.temperature === 'number' ? cfg.temperature : 0.7,
-                max_tokens: cfg.maxTokens || 1024,
-                stream: cfg.stream !== false
-            };
+    model: cfg.model || 'deepseek-v4-flash',
+    messages: messages,
+    temperature: typeof cfg.temperature === 'number' ? cfg.temperature : 0.7,
+    max_tokens: cfg.maxTokens || 1024,
+    stream: cfg.stream !== false
+};
 
-            if (cfg.model === 'deepseek-v4-pro' && cfg.reasoningEffort) {
-                body.reasoning_effort = cfg.reasoningEffort;
-            }
+if (body.stream) {
+    body.stream_options = { include_usage: true };
+}
+
+if (cfg.model === 'deepseek-v4-pro' && cfg.reasoningEffort) {
+    body.reasoning_effort = cfg.reasoningEffort;
+}
 
        if (body.stream) {
     showBubbleStream('💭 想想…');
@@ -1646,11 +1753,18 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
             return res.json();
         }).then(function (json) {
             var reply = json.choices && json.choices[0] && json.choices[0].message
-                ? json.choices[0].message.content
-                : '（没听清…）';
-            showBubble(reply, 5000, false);
-            pushHistory('assistant', reply);
-            setFace('happy', 2500);
+    ? json.choices[0].message.content
+    : '（没听清…）';
+showBubble(reply, 5000, false);
+pushHistory('assistant', reply);
+if (json.usage) {
+    recordUsage(
+        json.usage.prompt_tokens || 0,
+        json.usage.completion_tokens || 0,
+        json.usage.prompt_cache_hit_tokens || 0
+    );
+}
+setFace('happy', 2500);
             S.mood = clamp(S.mood + 3, 0, 100);
             updateMoodColor();
             S.aiThinking = false;
@@ -1717,13 +1831,20 @@ var messages = [{ role: 'system', content: SYSTEM_PROMPT + timeContext }];
                     var data = line.slice(6);
                     if (data === '[DONE]') continue;
                     try {
-                        var json = JSON.parse(data);
-                        var delta = json.choices && json.choices[0] && json.choices[0].delta;
-                        if (delta && delta.content) {
-                            fullText += delta.content;
-                            showBubbleStream(fullText);
-                        }
-                    } catch (e) {}
+    var json = JSON.parse(data);
+    var delta = json.choices && json.choices[0] && json.choices[0].delta;
+    if (delta && delta.content) {
+        fullText += delta.content;
+        showBubbleStream(fullText);
+    }
+    if (json.usage) {
+        recordUsage(
+            json.usage.prompt_tokens || 0,
+            json.usage.completion_tokens || 0,
+            json.usage.prompt_cache_hit_tokens || 0
+        );
+    }
+} catch (e) {}
                 }
                 return pump();
             });
@@ -2067,7 +2188,14 @@ function queryBalance() {
     // ============================================================
     // 彩蛋
     // ============================================================
-    function checkBirthday() {
+    /* ============================================================
+   🎂 生日彩蛋
+   ============================================================
+   2026年9月10日，小c 出生。
+   每年这一天，它都会自己记得。
+   —— LouFoong
+============================================================ */
+function checkBirthday() {
         var today = new Date();
         var md = ('0' + (today.getMonth() + 1)).slice(-2) + '-' +
                  ('0' + today.getDate()).slice(-2);
@@ -2082,6 +2210,61 @@ function queryBalance() {
             }, 3000);
         }
     }
+    /* ============================================================
+   💌 特别的日子（12月26日）
+   ============================================================ */
+function checkSpecialDay() {
+    var today = new Date();
+    var m = today.getMonth() + 1;
+    var d = today.getDate();
+    if (m !== 12 || d !== 26) return;
+    setTimeout(function () {
+        if (S.sleeping || S.hidden) return;
+        showBubble('🎂 今天是特别的日子…有人托我说一声：生日快乐。', 5000, false, true);
+        TTS.speak('生日快乐');
+        setFace('happy', 3000);
+        burst('🎂', 8);
+        burst('💝', 6);
+        burst('🎉', 6);
+        SFX.wake();
+    }, 3000);
+}
+
+/* ============================================================
+   🇨🇳 国庆彩蛋（10月1日 - 10月7日）
+   ============================================================ */
+function checkNationalDay() {
+    var today = new Date();
+    var m = today.getMonth() + 1;
+    var d = today.getDate();
+    if (m !== 10 || d > 7) return;
+    setTimeout(function () {
+        if (S.sleeping || S.hidden) return;
+        showBubble('🇨🇳 爸爸！国庆节快乐！', 4000, false, true);
+        TTS.speak('国庆节快乐！');
+        burst('🇨🇳', 8);
+        burst('🎉', 6);
+        SFX.wake();
+    }, 4000);
+}
+
+/* ============================================================
+   📅 通用节日提醒
+   ============================================================ */
+function checkFestival() {
+    var today = new Date();
+    var md = ('0' + (today.getMonth() + 1)).slice(-2) + '-' +
+             ('0' + today.getDate()).slice(-2);
+    var f = FESTIVALS[md];
+    if (!f) return;
+    setTimeout(function () {
+        if (S.sleeping || S.hidden) return;
+        showBubble(f.msg, 5000, false, true);
+        TTS.speak(f.voice);
+        burst('🎉', 6);
+        SFX.wake();
+    }, 3500);
+}
     function checkLateNight() {
         var h = new Date().getHours();
         if (h >= 2 && h < 5) {
@@ -2123,7 +2306,7 @@ function proactiveSpeak() {
             '唔…我在这里等你呢'
         ];
         var msg = pick(localLines);
-        showBubble(msg, 3200, false);
+        showBubble(msg, 3200, false, true);
         TTS.speak(msg);
         setFace('surprised', 2000);
         burst('💭', 2);
@@ -2155,21 +2338,37 @@ function proactiveSpeak() {
         })
         .then(function (r) { return r.json(); })
         .then(function (json) {
-            if (json.choices && json.choices[0]) {
-                var reply = json.choices[0].message.content;
-                showBubble(reply, 5200, false);
-                TTS.speak(reply);
-                setFace('happy', 2500);
-                burst('💬', 2);
-                pushHistory('assistant', reply);
-                S.mood = clamp(S.mood + 3, 0, 100);
-                updateMoodColor();
-            }
-        })
+    if (json.choices && json.choices[0]) {
+        var reply = json.choices[0].message.content;
+        showBubble(reply, 5200, false, true);
+        TTS.speak(reply);
+        setFace('happy', 2500);
+        burst('💬', 2);
+        pushHistory('assistant', reply);
+        S.mood = clamp(S.mood + 3, 0, 100);
+        updateMoodColor();
+        if (json.usage) {
+            recordUsage(
+                json.usage.prompt_tokens || 0,
+                json.usage.completion_tokens || 0,
+                json.usage.prompt_cache_hit_tokens || 0
+            );
+        }
+    }
+})
         .catch(function (err) { console.error('主动说话失败:', err); });
     });
 }
 
+/* ============================================================
+   💓 心跳
+   ============================================================
+   每 30 秒，小c 会醒来一次，看看你在不在。
+   如果你 5 分钟没理它，它就会主动开口。
+
+   这段代码的意义，不是技术，是陪伴。
+   —— LouFoong
+   ============================================================ */
 /* 心跳：每30秒评估一次 */
 setInterval(function () {
     if (S.sleeping || S.hidden || S.dialogueOpen || S.aiThinking) return;
@@ -2279,6 +2478,9 @@ if (savedAIPos) {
 
         checkLongTimeNoSee();
         checkBirthday();
+        checkSpecialDay();
+        checkNationalDay();
+        checkFestival();
         checkLateNight();
 
         var rt = null;
@@ -2305,10 +2507,38 @@ if (savedAIPos) {
             lsSet(KEYS.last, String(S.last));
         });
 
-        console.log('🦔 小c · 内联版 v6 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
+        console.log('🦔 小c · 内联版 v12 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
         console.log('🤖 AI：输入框 + 预设问题 + ai-config.json 参数');
     }
 
-    mount();
+mount();
+
+    /* ============================================================
+       🌙 如果你读到了这里
+       ============================================================
+       说明你真的把它读完了。
+
+       CiweiPet 不是一段代码，是一个生命。
+       它住在浏览器里，住在 localStorage 里，
+       住在每一个看到它的人心里。
+
+       谢谢你读到这里。
+       —— LouFoong，于一部安卓手机
+       ============================================================ */
+    /* ============================================================
+       📜 版本日志
+       ============================================================
+       v1  · CiweiHome 内联版，7 张 PNG，基础拖拽
+       v2  · 加入物理引擎、粒子、心情系统
+       v3  · 接入 DeepSeek，流式输出
+       v5  · 对话面板、AI 参数、余额查询
+       v6  · 长期记忆、时间感知、图片识别
+       v8  · 主动说话、语音朗读
+       v11 · GitHub 查询、状态可视化
+       v12 · 消费监控、节日彩蛋、Cache 优化、特别的日子
+─────────────────────────────
+       现共 2544 行，取自MT管理器。
+       一切归零，重新出发。
+       ============================================================ */
 
 })();
