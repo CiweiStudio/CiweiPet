@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 内联桌面宠物脚本 v13
+   🦔 Ciwei Pet · 内联桌面宠物脚本 v14
    含：AI 对话 + 输入框 + 参数从 ai-config.json 读
 
    ─────────────────────────────────────────────
@@ -387,6 +387,12 @@ usagePanel.innerHTML =
     var lastLongPressTime = 0;
     // 对话面板拖动状态
 var dlgDrag = {
+    dragging: false,
+    startX: 0, startY: 0,
+    startLeft: 0, startTop: 0,
+    moved: false
+};
+var usageDrag = {
     dragging: false,
     startX: 0, startY: 0,
     startLeft: 0, startTop: 0,
@@ -2083,8 +2089,21 @@ function openUsagePanel() {
     usagePanel.classList.add('show');
     var w = usagePanel.offsetWidth;
     var h = usagePanel.offsetHeight;
-    var px = Math.max(8, (window.innerWidth - w) / 2);
-    var py = Math.max(8, (window.innerHeight - h) / 2);
+    var px, py;
+    var savedPos = lsGet('ciwei_pet_usage_pos');
+    if (savedPos) {
+        try {
+            var p = JSON.parse(savedPos);
+            if (p && typeof p.x === 'number' && typeof p.y === 'number') {
+                px = Math.max(8, Math.min(p.x, window.innerWidth - w - 8));
+                py = Math.max(8, Math.min(p.y, window.innerHeight - h - 8));
+            }
+        } catch (e) {}
+    }
+    if (typeof px !== 'number') {
+        px = Math.max(8, (window.innerWidth - w) / 2);
+        py = Math.max(8, (window.innerHeight - h) / 2);
+    }
     usagePanel.style.left = px + 'px';
     usagePanel.style.top  = py + 'px';
     clearTimeout(S.avoidTimer);
@@ -2096,6 +2115,63 @@ function closeUsagePanel() {
     usagePanel.classList.remove('show');
     S.avoidCooldown = performance.now() + 2000;
 }
+
+/* ========== 💰 消费面板拖动 ========== */
+var usageHeader = usagePanel.querySelector('.cp-usage-header');
+
+function saveUsagePos() {
+    var r = usagePanel.getBoundingClientRect();
+    lsSet('ciwei_pet_usage_pos', JSON.stringify({
+        x: Math.round(r.left),
+        y: Math.round(r.top)
+    }));
+}
+
+usageHeader.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('button')) return;
+    usageDrag.dragging = true;
+    usageDrag.moved = false;
+    usageDrag.startX = e.clientX;
+    usageDrag.startY = e.clientY;
+    var r = usagePanel.getBoundingClientRect();
+    usageDrag.startLeft = r.left;
+    usageDrag.startTop = r.top;
+    usageHeader.classList.add('dragging');
+    try { usageHeader.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+});
+
+usageHeader.addEventListener('pointermove', function (e) {
+    if (!usageDrag.dragging) return;
+    e.preventDefault();
+    var dx = e.clientX - usageDrag.startX;
+    var dy = e.clientY - usageDrag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) usageDrag.moved = true;
+    if (!usageDrag.moved) return;
+    var newLeft = usageDrag.startLeft + dx;
+    var newTop  = usageDrag.startTop + dy;
+    var w = usagePanel.offsetWidth;
+    var h = usagePanel.offsetHeight;
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - w));
+    newTop  = Math.max(0, Math.min(newTop, window.innerHeight - h));
+    usagePanel.style.left = newLeft + 'px';
+    usagePanel.style.top  = newTop + 'px';
+});
+
+function endUsageDrag(e) {
+    if (!usageDrag.dragging) return;
+    usageDrag.dragging = false;
+    usageHeader.classList.remove('dragging');
+    try { usageHeader.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (usageDrag.moved) saveUsagePos();
+}
+
+usageHeader.addEventListener('pointerup', endUsageDrag);
+usageHeader.addEventListener('pointercancel', function (e) {
+    if (!usageDrag.dragging) return;
+    usageDrag.dragging = false;
+    usageHeader.classList.remove('dragging');
+});
 
 function queryBalance() {
     var k = getApiKey();
@@ -2576,7 +2652,7 @@ if (savedAIPos) {
             lsSet(KEYS.last, String(S.last));
         });
 
-        console.log('🦔 小c · 内联版 v13 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
+        console.log('🦔 小c · 内联版 v14 已启动 · ' + measuredFPS + 'fps · ' + getScalePercent() + '%');
         console.log('🤖 AI：输入框 + 预设问题 + ai-config.json 参数');
     }
 
@@ -2606,6 +2682,7 @@ mount();
        v11 · GitHub 查询、状态可视化
        v12 · 消费监控、节日彩蛋、Cache 优化、特别的日子
        v13 · 消费统计面板
+       v14 · 消费统计面板可拖动
 ─────────────────────────────
        现共 2612 行，取自MT管理器。
        一切归零，重新出发。
