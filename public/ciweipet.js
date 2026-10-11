@@ -1647,8 +1647,35 @@ function recordUsage(promptTokens, completionTokens, cacheHitTokens) {
 }
 
     function getApiKey() { return lsGet(KEYS.aiKey) || ''; }
-    function saveApiKey(k) { lsSet(KEYS.aiKey, k); updateAICheck(); }
-    function clearApiKey() { lsSet(KEYS.aiKey, ''); updateAICheck(); }
+    function saveApiKey(k) {
+        lsSet(KEYS.aiKey, k);
+        updateAICheck();
+        fetch('/api/key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: k })
+        }).catch(function(){});
+    }
+    function clearApiKey() {
+        lsSet(KEYS.aiKey, '');
+        updateAICheck();
+        fetch('/api/key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: '' })
+        }).catch(function(){});
+    }
+    function syncKeyFromServer() {
+        fetch('/api/key', { cache: 'no-store' })
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                if (data.key) {
+                    lsSet(KEYS.aiKey, data.key);
+                    updateAICheck();
+                }
+            })
+            .catch(function(){});
+    }
 
     function updateAICheck() {
         var key = getApiKey();
@@ -2616,6 +2643,7 @@ if (savedAIPos) {
         }
         
         TTS.init();
+        syncKeyFromServer();
         restore();
         requestAnimationFrame(function () { host.classList.add('ready'); });
         requestAnimationFrame(mainLoop);

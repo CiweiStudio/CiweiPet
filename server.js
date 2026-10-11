@@ -17,6 +17,34 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
+    if (req.url === '/api/key' && req.method === 'GET') {
+        try {
+            const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('api_key');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ key: row ? row.value : '' }));
+        } catch (e) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ key: '' }));
+        }
+    }
+
+    if (req.url === '/api/key' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('api_key', data.key || '');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true }));
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+        return;
+    }
+
     if (req.url === '/api/chat' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });

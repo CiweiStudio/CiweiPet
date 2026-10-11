@@ -4,5 +4,5 @@
   "maxTokens": 1024,
   "contextLines": 10,
   "reasoningEffort": "high",
-  "stream": true
+  "stream": false
 }

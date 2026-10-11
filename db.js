@@ -17,3 +17,9 @@ db.exec(`
 console.log('✅ 小c的大脑（Node自带SQLite）初始化成功！');
 
 module.exports = db;
+db.exec(`
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+)
+`);
