@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CiweiPet·小c</title>
+    <meta name="theme-color" content="#58a6ff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="小c">
+    <link rel="stylesheet" href="./ciweipet.css">
+    <script>
+        // 🧹 保险：主动注销任何残留的 Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+                for (var i = 0; i < regs.length; i++) regs[i].unregister();
+            }).catch(function(){});
+        }
+        if (window.caches && caches.keys) {
+            caches.keys().then(function(names) {
+                for (var j = 0; j < names.length; j++) caches.delete(names[j]);
+            }).catch(function(){});
+        }
+    </script>
+</head>
+<body>
+    <script src="./ciweipet.js"></script>
+</body>
+</html>

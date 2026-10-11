@@ -1,0 +1,1049 @@
+/* ============================================================
+   🦔 Ciwei Pet · 内联桌面宠物样式 v14
+   含：深浅色适配 · 光晕弱化 · 横排菜单 · 对话面板 · AI 设置 · 输入框
+================================================================ */
+
+#ciwei-pet, #ciwei-pet *,
+#ciwei-pet-menu, #ciwei-pet-menu *,
+#ciwei-pet-submenu, #ciwei-pet-submenu *,
+#ciwei-pet-dialogue, #ciwei-pet-dialogue *,
+#ciwei-pet-ai-settings, #ciwei-pet-ai-settings *,
+#ciwei-pet-particles, #ciwei-pet-particles *,
+#ciwei-pet-restore { box-sizing: border-box; }
+
+/* ============================================================
+   主题变量 · 浅色（默认）
+================================================================ */
+:root {
+    --cp-panel-bg: rgba(255, 255, 255, .96);
+    --cp-panel-text: #1a1a2e;
+    --cp-panel-text-muted: rgba(26, 26, 46, .55);
+    --cp-panel-border: rgba(0, 0, 0, .08);
+    --cp-panel-shadow: 0 8px 24px rgba(0, 0, 0, .1);
+    --cp-panel-hover: rgba(0, 0, 0, .05);
+    --cp-panel-active: rgba(88, 166, 255, .12);
+    --cp-panel-active-text: #2563eb;
+    --cp-bubble-bg: rgba(255, 255, 255, .97);
+    --cp-bubble-text: #1a1a2e;
+    --cp-bubble-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+    --cp-toolbar-bg: rgba(255, 255, 255, .9);
+    --cp-toolbar-btn: rgba(26, 26, 46, .72);
+    --cp-toolbar-btn-hover-bg: rgba(0, 0, 0, .08);
+    --cp-toolbar-btn-hover-color: #1a1a2e;
+    --cp-shadow-opacity: .28;
+    --cp-zzz-color: #58a6ff;
+
+    --cp-accent: 88, 166, 255;
+    --cp-size: 120px;
+    --cp-breath: 2.8s;
+    --cp-tilt: .5s;
+    --cp-bubble-t: .26s;
+    --cp-toolbar-t: .24s;
+    --cp-particle: 1.15s;
+    --cp-zzz: 2.6s;
+}
+
+:root[data-theme="dark"] {
+    --cp-panel-bg: rgba(28, 28, 42, .97);
+    --cp-panel-text: rgba(255, 255, 255, .85);
+    --cp-panel-text-muted: rgba(255, 255, 255, .5);
+    --cp-panel-border: rgba(255, 255, 255, .1);
+    --cp-panel-shadow: 0 12px 36px rgba(0, 0, 0, .45);
+    --cp-panel-hover: rgba(255, 255, 255, .1);
+    --cp-panel-active: rgba(88, 166, 255, .15);
+    --cp-panel-active-text: #60a5fa;
+    --cp-bubble-bg: rgba(30, 30, 45, .95);
+    --cp-bubble-text: #fff;
+    --cp-bubble-shadow: 0 6px 20px rgba(0, 0, 0, .28);
+    --cp-toolbar-bg: rgba(30, 30, 45, .9);
+    --cp-toolbar-btn: rgba(255, 255, 255, .75);
+    --cp-toolbar-btn-hover-bg: rgba(255, 255, 255, .16);
+    --cp-toolbar-btn-hover-color: #fff;
+    --cp-shadow-opacity: .35;
+    --cp-zzz-color: #78a0ff;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --cp-panel-bg: rgba(28, 28, 42, .97);
+        --cp-panel-text: rgba(255, 255, 255, .85);
+        --cp-panel-text-muted: rgba(255, 255, 255, .5);
+        --cp-panel-border: rgba(255, 255, 255, .1);
+        --cp-panel-shadow: 0 12px 36px rgba(0, 0, 0, .45);
+        --cp-panel-hover: rgba(255, 255, 255, .1);
+        --cp-panel-active: rgba(88, 166, 255, .15);
+        --cp-panel-active-text: #60a5fa;
+        --cp-bubble-bg: rgba(30, 30, 45, .95);
+        --cp-bubble-text: #fff;
+        --cp-bubble-shadow: 0 6px 20px rgba(0, 0, 0, .28);
+        --cp-toolbar-bg: rgba(30, 30, 45, .9);
+        --cp-toolbar-btn: rgba(255, 255, 255, .75);
+        --cp-toolbar-btn-hover-bg: rgba(255, 255, 255, .16);
+        --cp-toolbar-btn-hover-color: #fff;
+        --cp-shadow-opacity: .35;
+        --cp-zzz-color: #78a0ff;
+    }
+}
+
+@media (max-width: 600px) { :root { --cp-size: 88px; } }
+
+body[data-fps="high"] { --cp-breath: 2.5s; --cp-tilt: .42s; }
+body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; }
+
+/* ============================================================
+   宠物容器
+================================================================ */
+#ciwei-pet {
+    position: fixed; left: 0; top: 0;
+    width: var(--cp-size); height: var(--cp-size);
+    z-index: 9000;
+    transform: translate3d(-9999px, -9999px, 0);
+    will-change: transform;
+    cursor: grab; touch-action: none;
+    opacity: 0;
+    transition: opacity .45s cubic-bezier(.22,1,.36,1),
+                width .35s cubic-bezier(.34,1.56,.64,1),
+                height .35s cubic-bezier(.34,1.56,.64,1);
+    font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
+}
+#ciwei-pet.ready { opacity: 1; }
+#ciwei-pet.dragging { cursor: grabbing; }
+#ciwei-pet.animating {
+    transition: transform .55s cubic-bezier(.34,1.56,.64,1),
+                opacity .45s, width .35s, height .35s;
+}
+#ciwei-pet.scaling { transition: none; }
+#ciwei-pet.hidden { display: none; }
+
+#ciwei-pet .cp-body {
+    position: relative; width: 100%; height: 100%;
+    transition: transform .15s ease-out;
+    transform-style: preserve-3d;
+}
+#ciwei-pet.idle-float .cp-body {
+    animation: cp-idleFloat var(--cp-breath) ease-in-out infinite;
+}
+@keyframes cp-idleFloat {
+    0%, 100% { transform: translateY(0) rotate(0); }
+    25%      { transform: translateY(-3px) rotate(-.8deg); }
+    75%      { transform: translateY(-3px) rotate(.8deg); }
+}
+
+#ciwei-pet .cp-body::before { display: none; }
+
+#ciwei-pet .cp-shadow {
+    position: absolute;
+    bottom: -6px; left: 50%;
+    transform: translateX(-50%);
+    width: 66%; height: 9px;
+    background: radial-gradient(ellipse, rgba(0, 0, 0, var(--cp-shadow-opacity)) 0%, transparent 72%);
+    border-radius: 50%;
+    pointer-events: none; z-index: -1;
+    transition: all .28s cubic-bezier(.22,1,.36,1);
+}
+#ciwei-pet.dragging .cp-shadow {
+    opacity: .12;
+    transform: translateX(-50%) scale(1.4);
+    bottom: -14px;
+}
+#ciwei-pet.sleeping .cp-shadow { width: 76%; }
+
+#ciwei-pet .cp-tilt {
+    position: relative; width: 100%; height: 100%;
+    transform-style: preserve-3d;
+    transition: transform var(--cp-tilt) cubic-bezier(.22,1,.36,1);
+    z-index: 1;
+}
+
+#ciwei-pet .cp-light {
+    position: absolute; inset: -18px;
+    border-radius: 50%;
+    pointer-events: none; z-index: 2;
+    background: radial-gradient(circle at var(--cp-light-x, 50%) var(--cp-light-y, 50%),
+        rgba(255, 255, 255, .32) 0%, transparent 55%);
+    mix-blend-mode: overlay;
+    opacity: .6;
+    transition: opacity .3s;
+}
+#ciwei-pet.sleeping .cp-light { opacity: .2; }
+
+#ciwei-pet .cp-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 14px rgba(0, 0, 0, .2));
+    pointer-events: none;
+    transition: filter .22s ease-out;
+    -webkit-user-drag: none;
+}
+#ciwei-pet.sleeping .cp-img {
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .14)) saturate(.85) brightness(.96);
+}
+#ciwei-pet.squash .cp-img {
+    animation: cp-squash .42s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes cp-squash {
+    0%   { transform: scale(1, 1); }
+    30%  { transform: scale(1.2, .8); }
+    60%  { transform: scale(.9, 1.13); }
+    100% { transform: scale(1, 1); }
+}
+#ciwei-pet.spin .cp-tilt {
+    animation: cp-spin .85s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes cp-spin {
+    0%   { transform: rotate(0deg) scale(1); }
+    50%  { transform: rotate(180deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+#ciwei-pet.sleeping .cp-body {
+    animation: cp-sleepBreath 4.5s ease-in-out infinite;
+}
+@keyframes cp-sleepBreath {
+    0%, 100% { transform: scale(1) rotate(-1.2deg); }
+    50%      { transform: scale(1.03) translateY(-2px) rotate(1.5deg); }
+}
+
+#ciwei-pet .cp-zzz {
+    position: absolute;
+    top: -6px; right: -14px;
+    font-size: 17px; opacity: 0;
+    pointer-events: none; z-index: 2;
+    color: var(--cp-zzz-color);
+}
+#ciwei-pet.sleeping .cp-zzz {
+    animation: cp-zzzFloat var(--cp-zzz) ease-out infinite;
+}
+@keyframes cp-zzzFloat {
+    0%   { opacity: 0; transform: translate(0, 0) scale(.5); }
+    22%  { opacity: 1; transform: translate(-4px, -10px) scale(.9); }
+    65%  { opacity: .7; transform: translate(-16px, -32px) scale(1.1); }
+    100% { opacity: 0; transform: translate(-26px, -54px) scale(1.25); }
+}
+
+/* 气泡 */
+#ciwei-pet .cp-bubble {
+    position: absolute;
+    left: 50%; bottom: calc(100% + 10px);
+    transform: translateX(-50%) translateY(6px) scale(.9);
+    background: var(--cp-bubble-bg);
+    color: var(--cp-bubble-text);
+    padding: 8px 14px;
+    border-radius: 14px 14px 4px 14px;
+    font-size: 13px; font-weight: 500; line-height: 1.5;
+    box-shadow: var(--cp-bubble-shadow);
+    width: max-content; max-width: 280px; min-width: 60px;
+    white-space: nowrap; word-break: normal;
+    text-align: left; opacity: 0;
+    transition: all var(--cp-bubble-t) cubic-bezier(.22,1,.36,1);
+    pointer-events: none;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--cp-panel-border);
+    z-index: 10;
+}
+#ciwei-pet .cp-bubble.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+}
+#ciwei-pet .cp-bubble.long {
+    white-space: normal; word-break: break-word;
+}
+#ciwei-pet .cp-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -5px; right: 18px;
+    width: 10px; height: 10px;
+    background: var(--cp-bubble-bg);
+    transform: rotate(45deg);
+    border-right: 1px solid var(--cp-panel-border);
+    border-bottom: 1px solid var(--cp-panel-border);
+    border-radius: 0 0 2px 0;
+}
+#ciwei-pet.bubble-below .cp-bubble {
+    bottom: auto; top: calc(100% + 10px);
+    border-radius: 4px 14px 14px 14px;
+    transform: translateX(-50%) translateY(-6px) scale(.9);
+}
+#ciwei-pet.bubble-below .cp-bubble.show {
+    transform: translateX(-50%) translateY(0) scale(1);
+}
+#ciwei-pet.bubble-below .cp-bubble::after {
+    bottom: auto; top: -5px; right: 18px;
+    border: none;
+    border-left: 1px solid var(--cp-panel-border);
+    border-top: 1px solid var(--cp-panel-border);
+    border-radius: 2px 0 0 0;
+}
+body[data-fps="low"] #ciwei-pet .cp-bubble {
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+
+/* 工具栏 */
+#ciwei-pet .cp-toolbar {
+    position: absolute;
+    left: 50%; top: calc(100% + 6px);
+    transform: translateX(-50%) translateY(-6px);
+    display: flex; gap: 2px;
+    background: var(--cp-toolbar-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    padding: 3px; border-radius: 18px;
+    border: 1px solid var(--cp-panel-border);
+    box-shadow: var(--cp-bubble-shadow);
+    opacity: 0;
+    transition: all var(--cp-toolbar-t) cubic-bezier(.22,1,.36,1);
+    pointer-events: none; z-index: 5;
+}
+#ciwei-pet.show-toolbar .cp-toolbar,
+#ciwei-pet:hover .cp-toolbar {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+#ciwei-pet.toolbar-above .cp-toolbar {
+    top: auto; bottom: calc(100% + 6px);
+    transform: translateX(-50%) translateY(6px);
+}
+#ciwei-pet.toolbar-above.show-toolbar .cp-toolbar,
+#ciwei-pet.toolbar-above:hover .cp-toolbar {
+    transform: translateX(-50%) translateY(0);
+}
+
+#ciwei-pet .cp-toolbar-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%; border: none;
+    background: transparent;
+    color: var(--cp-toolbar-btn);
+    cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .18s;
+    -webkit-tap-highlight-color: transparent;
+}
+#ciwei-pet .cp-toolbar-btn:hover {
+    background: var(--cp-toolbar-btn-hover-bg);
+    color: var(--cp-toolbar-btn-hover-color);
+    transform: scale(1.18);
+}
+#ciwei-pet .cp-toolbar-btn:active { transform: scale(.85); }
+
+/* 粒子 */
+#ciwei-pet-particles {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; z-index: 8999; overflow: hidden;
+}
+#ciwei-pet-particles .cp-particle {
+    position: absolute; pointer-events: none;
+    will-change: transform, opacity;
+    animation: cp-particleFly var(--cp-particle, 1.15s) cubic-bezier(.22,.61,.36,1) forwards;
+}
+@keyframes cp-particleFly {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+    20%  { opacity: 1; }
+    100% { opacity: 0;
+           transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+                     scale(1.15) rotate(var(--rot)); }
+}
+
+/* 一级菜单 */
+#ciwei-pet-menu {
+    position: fixed;
+    background: var(--cp-panel-bg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 14px;
+    padding: 5px;
+    box-shadow: var(--cp-panel-shadow);
+    z-index: 9002;
+    display: none;
+    font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
+    animation: cp-menuIn .18s cubic-bezier(.22,1,.36,1);
+    transform-origin: top left;
+}
+#ciwei-pet-menu.show { display: flex; gap: 2px; }
+@keyframes cp-menuIn {
+    from { opacity: 0; transform: scale(.9) translateY(-6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+#ciwei-pet-menu .cp-mi {
+    position: relative;
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+    color: var(--cp-panel-text);
+    cursor: pointer; transition: all .15s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#ciwei-pet-menu .cp-mi:hover {
+    background: var(--cp-panel-hover);
+    transform: translateY(-2px);
+}
+#ciwei-pet-menu .cp-mi:active {
+    transform: translateY(0) scale(.92);
+}
+#ciwei-pet-menu .cp-mi::after {
+    content: attr(data-label);
+    position: absolute;
+    top: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    font-size: 11px; color: #fff;
+    background: rgba(15, 15, 22, .96);
+    padding: 3px 8px; border-radius: 6px;
+    white-space: nowrap; opacity: 0;
+    pointer-events: none; transition: all .18s; z-index: 1;
+}
+#ciwei-pet-menu .cp-mi:hover::after {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+}
+
+/* 二级菜单 */
+#ciwei-pet-submenu {
+    position: fixed;
+    background: var(--cp-panel-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 12px;
+    padding: 5px;
+    box-shadow: var(--cp-panel-shadow);
+    z-index: 9003;
+    display: none;
+    min-width: 170px;
+    font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
+    animation: cp-menuIn .18s cubic-bezier(.22,1,.36,1);
+    transform-origin: top left;
+}
+#ciwei-pet-submenu.show { display: block; }
+#ciwei-pet-submenu .cp-sub-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--cp-panel-text);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    transition: all .14s;
+    user-select: none; white-space: nowrap;
+}
+#ciwei-pet-submenu .cp-sub-item:hover {
+    background: var(--cp-panel-hover);
+}
+#ciwei-pet-submenu .cp-sub-item:active {
+    background: var(--cp-panel-active);
+    transform: scale(.98);
+}
+#ciwei-pet-submenu .cp-sub-item.danger:hover {
+    background: rgba(239, 68, 68, .16);
+    color: #f87171;
+}
+#ciwei-pet-submenu .cp-sub-item .cp-sub-check {
+    margin-left: auto; font-size: 11px;
+    color: var(--cp-panel-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+#ciwei-pet-submenu .cp-sub-item.active .cp-sub-check { color: #58a6ff; }
+#ciwei-pet-submenu .cp-sep {
+    height: 1px; background: var(--cp-panel-border);
+    margin: 4px 8px;
+}
+
+/* 对话面板 */
+#ciwei-pet-dialogue {
+    position: fixed;
+    background: var(--cp-panel-bg);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 14px;
+    padding: 0;
+    box-shadow: var(--cp-panel-shadow);
+    z-index: 9002;
+    display: none;
+    min-width: 200px; max-width: 260px;
+    max-height: 46vh;
+    overflow: hidden;
+    flex-direction: column;
+    font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
+    animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
+    transform-origin: top left;
+}
+#ciwei-pet-dialogue.show { display: flex; }
+
+#ciwei-pet-dialogue .cp-dlg-header {
+    display: flex; align-items: center;
+    padding: 7px 10px 8px;
+    border-bottom: 1px solid var(--cp-panel-border);
+    flex-shrink: 0;
+    background: var(--cp-panel-bg);
+    cursor: move;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+#ciwei-pet-dialogue .cp-dlg-header.dragging {
+    cursor: grabbing;
+}
+#ciwei-pet-dialogue .cp-dlg-header.dragging ~ * {
+    pointer-events: none;
+}
+#ciwei-pet-dialogue .cp-dlg-title {
+    font-size: 12px; font-weight: 600;
+    color: var(--cp-panel-text-muted);
+    letter-spacing: .5px;
+}
+#ciwei-pet-dialogue .cp-dlg-settings-btn {
+    background: none; border: none;
+    color: var(--cp-panel-text-muted);
+    font-size: 13px; cursor: pointer;
+    padding: 2px 6px; border-radius: 6px;
+    transition: all .15s; line-height: 1;
+    margin-left: auto; margin-right: 2px;
+}
+#ciwei-pet-dialogue .cp-dlg-settings-btn:hover {
+    background: var(--cp-panel-hover);
+    color: #58a6ff;
+}
+#ciwei-pet-dialogue .cp-dlg-close {
+    background: none; border: none;
+    color: var(--cp-panel-text-muted);
+    font-size: 14px; cursor: pointer;
+    padding: 2px 6px; border-radius: 6px;
+    transition: all .15s; line-height: 1;
+}
+#ciwei-pet-dialogue .cp-dlg-close:hover {
+    background: var(--cp-panel-hover);
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-dialogue #cp-dlg-body {
+    flex: 1;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px;
+    min-height: 0;
+}
+#ciwei-pet-dialogue #cp-dlg-body::-webkit-scrollbar { width: 3px; }
+#ciwei-pet-dialogue #cp-dlg-body::-webkit-scrollbar-thumb {
+    background: var(--cp-panel-text-muted);
+    border-radius: 4px;
+}
+#ciwei-pet-dialogue .cp-dlg-item {
+    padding: 7px 11px;
+    font-size: 12.5px;
+    color: var(--cp-panel-text);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .14s;
+    user-select: none;
+    display: flex; align-items: center; gap: 8px;
+    line-height: 1.3; position: relative;
+}
+#ciwei-pet-dialogue .cp-dlg-item:hover { background: var(--cp-panel-hover); }
+#ciwei-pet-dialogue .cp-dlg-item:active {
+    background: var(--cp-panel-active);
+    transform: scale(.98);
+}
+#ciwei-pet-dialogue .cp-dlg-item .cp-dlg-icon {
+    font-size: 13px; flex-shrink: 0; opacity: .6;
+}
+#ciwei-pet-dialogue .cp-dlg-item.asked {
+    color: var(--cp-panel-text-muted);
+}
+#ciwei-pet-dialogue .cp-dlg-item.asked::after {
+    content: '✓'; position: absolute;
+    right: 10px; font-size: 11px; color: #58a6ff;
+}
+#ciwei-pet-dialogue .cp-dlg-item.secret { color: #d97706; }
+#ciwei-pet-dialogue .cp-dlg-item.secret:hover {
+    background: rgba(251, 191, 36, .14);
+}
+#ciwei-pet-dialogue .cp-dlg-item.ai { color: #58a6ff; }
+#ciwei-pet-dialogue .cp-dlg-item.ai::before {
+    content: ''; position: absolute;
+    left: 0; top: 8px; bottom: 8px;
+    width: 2px; background: #58a6ff; border-radius: 2px;
+}
+#ciwei-pet-dialogue .cp-dlg-item.replying {
+    background: var(--cp-panel-active);
+    color: var(--cp-panel-active-text);
+}
+#ciwei-pet-dialogue .cp-dlg-item.replying::after {
+    content: '…'; position: absolute;
+    right: 10px; font-size: 13px; color: #58a6ff;
+}
+
+/* ⭐ 对话输入区 */
+#ciwei-pet-dialogue .cp-dlg-input-area {
+    flex-shrink: 0;
+    display: flex; gap: 6px;
+    padding: 7px 9px 9px;
+    border-top: 1px solid var(--cp-panel-border);
+    background: var(--cp-panel-bg);
+}
+#ciwei-pet-dialogue .cp-dlg-input {
+    flex: 1; min-width: 0;
+    padding: 8px 12px;
+    background: var(--cp-panel-hover);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 8px;
+    color: var(--cp-panel-text);
+    font-size: 13px; font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+    -webkit-tap-highlight-color: transparent;
+}
+#ciwei-pet-dialogue .cp-dlg-input:focus { border-color: #58a6ff; }
+#ciwei-pet-dialogue .cp-dlg-input::placeholder {
+    color: var(--cp-panel-text-muted);
+}
+#ciwei-pet-dialogue .cp-dlg-send {
+    padding: 8px 14px;
+    border: none; border-radius: 8px;
+    background: #58a6ff; color: #fff;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer; font-family: inherit;
+    transition: all .15s;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+}
+#ciwei-pet-dialogue .cp-dlg-send:hover { background: #4a8edb; }
+#ciwei-pet-dialogue .cp-dlg-send:active { transform: scale(.94); }
+
+/* AI Key 面板 */
+#ciwei-pet-ai-settings {
+    position: fixed;
+    background: var(--cp-panel-bg);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 14px;
+    padding: 0;
+    box-shadow: var(--cp-panel-shadow);
+    z-index: 9002;
+    display: none;
+    width: 240px;
+    max-width: calc(100vw - 32px);
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
+    animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
+    transform-origin: top left;
+}
+#ciwei-pet-ai-settings.show { display: block; }
+#ciwei-pet-ai-settings::-webkit-scrollbar { width: 3px; }
+#ciwei-pet-ai-settings::-webkit-scrollbar-thumb {
+    background: var(--cp-panel-text-muted);
+    border-radius: 4px;
+}
+#ciwei-pet-ai-settings .cp-ai-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--cp-panel-border);
+    position: sticky; top: 0;
+    background: var(--cp-panel-bg);
+    border-radius: 14px 14px 0 0; z-index: 1;
+    cursor: move;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+#ciwei-pet-ai-settings .cp-ai-header.dragging {
+    cursor: grabbing;
+}
+#ciwei-pet-ai-settings .cp-ai-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-ai-settings .cp-ai-close {
+    background: none; border: none;
+    color: var(--cp-panel-text-muted);
+    font-size: 16px; cursor: pointer;
+    padding: 2px 8px; border-radius: 6px;
+    transition: all .15s; line-height: 1;
+}
+#ciwei-pet-ai-settings .cp-ai-close:hover {
+    background: var(--cp-panel-hover);
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-ai-settings .cp-ai-body { padding: 14px 16px 16px; }
+#ciwei-pet-ai-settings .cp-ai-field { margin-bottom: 14px; }
+#ciwei-pet-ai-settings .cp-ai-label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--cp-panel-text-muted);
+    letter-spacing: .3px; margin-bottom: 6px;
+}
+#ciwei-pet-ai-settings .cp-ai-key-row { display: flex; gap: 6px; }
+#ciwei-pet-ai-settings .cp-ai-key-row input {
+    flex: 1; min-width: 0;
+    padding: 8px 10px; font-size: 13px;
+    font-family: 'SF Mono', Consolas, monospace;
+    background: var(--cp-panel-hover);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 8px;
+    color: var(--cp-panel-text); outline: none;
+}
+#ciwei-pet-ai-settings .cp-ai-key-row input:focus { border-color: #58a6ff; }
+#ciwei-pet-ai-settings .cp-ai-key-toggle {
+    width: 36px;
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 8px;
+    background: var(--cp-panel-hover);
+    cursor: pointer; font-size: 14px;
+    color: var(--cp-panel-text-muted);
+    transition: all .15s;
+}
+#ciwei-pet-ai-settings .cp-ai-key-toggle:hover {
+    background: var(--cp-panel-active); color: #58a6ff;
+}
+#ciwei-pet-ai-settings .cp-ai-key-save {
+    padding: 0 14px;
+    border: 1px solid #58a6ff;
+    border-radius: 8px;
+    background: #58a6ff;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+    height: auto;
+}
+#ciwei-pet-ai-settings .cp-ai-key-save:hover {
+    background: #4a8edb;
+    border-color: #4a8edb;
+}
+#ciwei-pet-ai-settings .cp-ai-key-save:active {
+    transform: scale(.94);
+}
+#ciwei-pet-ai-settings .cp-ai-hint {
+    font-size: 11px; color: var(--cp-panel-text-muted);
+    margin-top: 4px; line-height: 1.5;
+}
+#ciwei-pet-ai-settings .cp-ai-hint a { text-decoration: none; }
+#ciwei-pet-ai-settings .cp-ai-hint a:hover { text-decoration: underline; }
+#ciwei-pet-ai-settings .cp-ai-params {
+    background: var(--cp-panel-hover);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-ai-settings .cp-ai-param-row {
+    display: flex; justify-content: space-between;
+    padding: 3px 0;
+}
+#ciwei-pet-ai-settings .cp-ai-param-row span { color: var(--cp-panel-text-muted); }
+#ciwei-pet-ai-settings .cp-ai-param-row strong { font-weight: 600; }
+#ciwei-pet-ai-settings .cp-ai-actions {
+    display: flex; gap: 6px;
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--cp-panel-border);
+}
+#ciwei-pet-ai-settings .cp-ai-btn {
+    flex: 1; padding: 8px 12px;
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 8px;
+    background: var(--cp-panel-hover);
+    color: var(--cp-panel-text);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all .15s;
+    font-family: inherit;
+}
+#ciwei-pet-ai-settings .cp-ai-btn:hover {
+    background: var(--cp-panel-active);
+    border-color: #58a6ff; color: #58a6ff;
+}
+#ciwei-pet-ai-settings .cp-ai-btn.primary {
+    background: #58a6ff; color: #fff; border-color: #58a6ff;
+}
+#ciwei-pet-ai-settings .cp-ai-btn.primary:hover { background: #4a8edb; }
+#ciwei-pet-ai-settings .cp-ai-btn.danger:hover {
+    background: rgba(239,68,68,.16);
+    border-color: #ef4444; color: #f87171;
+}
+#ciwei-pet-ai-settings .cp-ai-status {
+    margin-top: 10px; font-size: 12px;
+    text-align: center; min-height: 18px;
+    color: var(--cp-panel-text-muted);
+}
+#ciwei-pet-ai-settings .cp-ai-status.ok { color: #22c55e; }
+#ciwei-pet-ai-settings .cp-ai-status.err { color: #ef4444; }
+
+/* 恢复按钮 */
+#ciwei-pet-restore {
+    position: fixed;
+    bottom: 16px; right: 16px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--cp-panel-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--cp-panel-border);
+    box-shadow: var(--cp-panel-shadow);
+    color: var(--cp-panel-text);
+    display: none;
+    align-items: center; justify-content: center;
+    font-size: 20px; cursor: pointer;
+    z-index: 9001; transition: all .25s;
+    animation: cp-restoreIn .4s cubic-bezier(.22,1,.36,1);
+}
+#ciwei-pet-restore.show { display: flex; }
+#ciwei-pet-restore:hover { transform: scale(1.1); border-color: #58a6ff; }
+#ciwei-pet-restore:active { transform: scale(.92); }
+@keyframes cp-restoreIn {
+    from { opacity: 0; transform: scale(.6) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 600px) {
+    #ciwei-pet .cp-bubble { font-size: 12px; padding: 6px 11px; max-width: 220px; }
+    #ciwei-pet .cp-toolbar-btn { width: 25px; height: 25px; font-size: 12px; }
+    #ciwei-pet-restore { width: 40px; height: 40px; font-size: 18px; }
+    #ciwei-pet-menu .cp-mi { width: 34px; height: 34px; font-size: 15px; }
+    #ciwei-pet-submenu { min-width: 150px; }
+    #ciwei-pet-submenu .cp-sub-item { padding: 9px 12px; font-size: 13.5px; }
+    #ciwei-pet-dialogue { min-width: 200px; max-width: 240px; }
+    #ciwei-pet-dialogue .cp-dlg-item { padding: 10px 12px; font-size: 13.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #ciwei-pet, #ciwei-pet *,
+    #ciwei-pet-particles, #ciwei-pet-particles * {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
+}
+
+/* ============================================================
+   移动端 · 对话面板优化
+================================================================ */
+@media (max-width: 600px) {
+    #ciwei-pet-dialogue {
+        min-width: 180px;
+        max-width: 230px;
+        max-height: 42vh;
+    }
+    #ciwei-pet-dialogue .cp-dlg-item {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    #ciwei-pet-dialogue .cp-dlg-title {
+        font-size: 11px;
+    }
+    #ciwei-pet-dialogue .cp-dlg-input {
+        padding: 7px 10px;
+        font-size: 12.5px;
+    }
+    #ciwei-pet-dialogue .cp-dlg-send {
+        padding: 7px 12px;
+        font-size: 12.5px;
+    }
+}
+
+/* ============================================================
+   AI Key 面板 · 余额展示
+================================================================ */
+#ciwei-pet-ai-settings .cp-ai-balance-box {
+    background: var(--cp-panel-hover);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 4px;
+}
+#ciwei-pet-ai-settings .cp-ai-balance-main {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+#ciwei-pet-ai-settings .cp-ai-balance-main .cur {
+    font-size: 14px;
+    color: var(--cp-panel-text-muted);
+}
+#ciwei-pet-ai-settings .cp-ai-balance-main .amt {
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(135deg, #58a6ff, #22c55e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+#ciwei-pet-ai-settings .cp-ai-balance-sub {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--cp-panel-text-muted);
+    flex-wrap: wrap;
+}
+#ciwei-pet-ai-settings .cp-ai-balance-sub strong {
+    color: var(--cp-panel-text);
+    font-weight: 600;
+}
+#ciwei-pet-ai-settings .cp-ai-balance-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--cp-panel-text-muted);
+}
+#ciwei-pet-ai-settings .cp-ai-balance-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+#ciwei-pet-ai-settings .cp-ai-balance-status .dot.ok { background: #22c55e; }
+#ciwei-pet-ai-settings .cp-ai-balance-status .dot.err { background: #ef4444; }
+#ciwei-pet-ai-settings .cp-ai-balance-empty {
+    text-align: center;
+    font-size: 12px;
+    color: var(--cp-panel-text-muted);
+    padding: 8px 0;
+}
+@media (max-width: 600px) {
+    #ciwei-pet-ai-settings {
+        width: 200px;
+        max-height: 52vh;
+    }
+    #ciwei-pet-ai-settings .cp-ai-header {
+        padding: 8px 12px 8px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-title {
+        font-size: 12px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-body {
+        padding: 12px 12px 14px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-label {
+        font-size: 11px;
+        margin-bottom: 5px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-key-row input {
+        padding: 7px 9px;
+        font-size: 12px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-key-toggle {
+        width: 32px;
+        font-size: 12px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-params {
+        padding: 8px 10px;
+        font-size: 11px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-param-row {
+        padding: 2px 0;
+    }
+    #ciwei-pet-ai-settings .cp-ai-btn {
+        padding: 7px 6px;
+        font-size: 11px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-balance-box {
+        padding: 10px 12px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-balance-main .amt {
+        font-size: 20px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-balance-sub {
+        font-size: 10px;
+        gap: 8px;
+    }
+    #ciwei-pet-ai-settings .cp-ai-actions {
+        gap: 4px;
+    }
+}
+
+
+/* ============================================================
+   💰 消费统计面板
+================================================================ */
+#ciwei-pet-usage-panel {
+    position: fixed;
+    background: var(--cp-panel-bg);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 14px;
+    box-shadow: var(--cp-panel-shadow);
+    z-index: 9002;
+    display: none;
+    width: 220px;
+    max-width: calc(100vw - 32px);
+    font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
+    animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
+    transform-origin: top left;
+}
+#ciwei-pet-usage-panel.show { display: block; }
+#ciwei-pet-usage-panel .cp-usage-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--cp-panel-border);
+    cursor: move;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+#ciwei-pet-usage-panel .cp-usage-header.dragging {
+    cursor: grabbing;
+}
+#ciwei-pet-usage-panel .cp-usage-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-usage-panel .cp-usage-close {
+    background: none; border: none;
+    color: var(--cp-panel-text-muted);
+    font-size: 16px; cursor: pointer;
+    padding: 2px 8px; border-radius: 6px;
+    transition: all .15s; line-height: 1;
+}
+#ciwei-pet-usage-panel .cp-usage-close:hover {
+    background: var(--cp-panel-hover);
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-usage-panel .cp-usage-body {
+    padding: 14px 16px 16px;
+}
+#ciwei-pet-usage-panel .cp-usage-block {
+    background: var(--cp-panel-hover);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+}
+#ciwei-pet-usage-panel .cp-usage-block:last-child { margin-bottom: 0; }
+#ciwei-pet-usage-panel .cp-usage-label {
+    font-size: 11px;
+    color: var(--cp-panel-text-muted);
+    margin-bottom: 6px;
+    letter-spacing: .3px;
+}
+#ciwei-pet-usage-panel .cp-usage-main {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+#ciwei-pet-usage-panel .cp-usage-num {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--cp-panel-text);
+}
+#ciwei-pet-usage-panel .cp-usage-unit {
+    font-size: 11px;
+    color: var(--cp-panel-text-muted);
+}
+#ciwei-pet-usage-panel .cp-usage-cost {
+    font-size: 14px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #58a6ff, #22c55e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+@media (max-width: 600px) {
+    #ciwei-pet-usage-panel { width: 200px; }
+    #ciwei-pet-usage-panel .cp-usage-num { font-size: 20px; }
+}
