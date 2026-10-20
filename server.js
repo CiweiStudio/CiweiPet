@@ -4,11 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 
+// ⭐ 引入新的 pdfreader 库，绝对兼容 Node 24
+const { PdfReader } = require("pdfreader");
+const mammoth = require('mammoth');
+
 const CONFIG_PATH = path.join(__dirname, 'public', 'ai-config.json');
-let apiConfig = { apiUrl: 'https://api.deepseek.com/chat/completions' };
-if (fs.existsSync(CONFIG_PATH)) {
-    try { apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch (e) {}
-}
 const PORT = 3000;
 
 const server = http.createServer((req, res) => {
@@ -17,115 +17,149 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
-    if (req.url === '/api/key' && req.method === 'GET') {
-        try {
-            const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('api_key');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ key: row ? row.value : '' }));
-        } catch (e) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ key: '' }));
-        }
-    }
-
-    if (req.url === '/api/key' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', () => {
+    // 📁 文件上传与解析接口
+    if (req.url === '/api/upload' && req.method === 'POST') {
+        let chunks = [];
+        req.on('data', chunk => { chunks.push(chunk); }); 
+        req.on('end', async () => {
             try {
-                const data = JSON.parse(body);
-                db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('api_key', data.key || '');
+                const body = Buffer.concat(chunks).toString('utf8');
+                const { filename, base64Data } = JSON.parse(body);
+                const buffer = Buffer.from(base64Data, 'base64');
+                let text = '';
+
+                if (filename.endsWith('.txt') || filename.endsWith('.md')) {
+                    text = buffer.toString('utf8');
+                } else if (filename.endsWith('.pdf')) {
+                    // ⭐ 使用 pdfreader 解析 PDF
+                    text = await new Promise((resolve, reject) => {
+                        let pdfText = '';
+                        new PdfReader().parseBuffer(buffer, function(err, item) {
+                            if (err) {
+                                reject(err);
+                            } else if (!item) {
+                                resolve(pdfText);
+                            } else if (item.text) {
+                                pdfText += item.text + ' '; // 把文本拼起来
+                            }
+                        });
+                    });
+                } else if (filename.endsWith('.docx')) {
+                    const result = await mammoth.extractRawText({ buffer });
+                    text = result.value;
+                } else {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ error: '目前只支持 txt, md, pdf, docx' }));
+                }
+
+                // 限制长度，防止 API 撑爆
+                if (text.length > 15000) text = text.slice(0, 15000) + '\n\n(文件太长，已截断)';
+
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ ok: true }));
-            } catch (e) {
+                res.end(JSON.stringify({ text: text }));
+            } catch (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: e.message }));
+                res.end(JSON.stringify({ error: err.message }));
             }
         });
         return;
     }
-
+    
     if (req.url === '/api/chat' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
         req.on('end', async () => {
             try {
+                // 每次请求都重新读取配置，后台改了立刻生效
+                let apiConfig = { apiUrl: 'https://api.deepseek.com/chat/completions', apiKey: '' };
+                if (fs.existsSync(CONFIG_PATH)) {
+                    try { apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch (e) {}
+                }
+
+                if (!apiConfig.apiKey) {
+                    res.writeHead(401, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ error: { message: '后台未配置 API Key' } }));
+                }
+
                 const payload = JSON.parse(body);
                 const messages = payload.messages || [];
-                const frontendKey = req.headers['authorization']
-                    ? req.headers['authorization'].replace('Bearer ', '') : '';
-                const finalApiKey = frontendKey || apiConfig.apiKey;
-
-                if (!finalApiKey) {
-                    res.writeHead(401, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify({ error: '未配置 API Key' }));
-                }
 
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                 if (lastUserMsg) {
                     const contentStr = typeof lastUserMsg.content === 'string'
                         ? lastUserMsg.content : JSON.stringify(lastUserMsg.content);
-                    db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('user', contentStr);
+                    try { db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('user', contentStr); } catch(e) {}
                 }
 
-                const data = JSON.stringify({
-                    model: payload.model || 'deepseek-chat',
-                    messages: messages.map(m => ({ role: m.role, content: m.content })),
-                    temperature: payload.temperature || 0.7,
-                    max_tokens: payload.max_tokens || 1024,
-                    stream: false
-                });
-
+                const reqData = JSON.stringify(payload);
                 const urlObj = new URL(apiConfig.apiUrl || 'https://api.deepseek.com/chat/completions');
+                
                 const options = {
                     hostname: urlObj.hostname,
                     path: urlObj.pathname,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + finalApiKey
+                        'Authorization': 'Bearer ' + apiConfig.apiKey // ⭐ 后端自己带 Key
                     }
                 };
 
                 const apiReq = https.request(options, (apiRes) => {
-                    let responseBody = '';
-                    apiRes.on('data', chunk => { responseBody += chunk; });
-                    apiRes.on('end', () => {
-                        try {
-                            const parsed = JSON.parse(responseBody);
-                            if (parsed.error) {
-                                res.writeHead(400, { 'Content-Type': 'application/json' });
-                                return res.end(JSON.stringify({ error: parsed.error.message }));
+                    res.writeHead(apiRes.statusCode, apiRes.headers);
+                    let fullContent = '';
+                    
+                    apiRes.on('data', chunk => {
+                        res.write(chunk);
+                        if (payload.stream) {
+                            const text = chunk.toString();
+                            const lines = text.split('\n');
+                            for (const line of lines) {
+                                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                                    try {
+                                        const json = JSON.parse(line.slice(6));
+                                        if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                                            fullContent += json.choices[0].delta.content;
+                                        }
+                                    } catch (e) {}
+                                }
                             }
-                            const reply = parsed.choices && parsed.choices[0]
-                                ? parsed.choices[0].message.content : '（没听清…）';
-                            db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('assistant', reply);
-                            res.writeHead(200, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({
-                                choices: [{ message: { role: 'assistant', content: reply } }]
-                            }));
-                        } catch (e) {
-                            res.writeHead(500, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ error: '解析失败' }));
+                        } else {
+                            fullContent += chunk.toString();
+                        }
+                    });
+                    
+                    apiRes.on('end', () => {
+                        res.end();
+                        if (payload.stream) {
+                            if (fullContent) {
+                                try { db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('assistant', fullContent); } catch(e){}
+                            }
+                        } else {
+                            try {
+                                const parsed = JSON.parse(fullContent);
+                                if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+                                    db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('assistant', parsed.choices[0].message.content);
+                                }
+                            } catch(e) {}
                         }
                     });
                 });
 
                 apiReq.on('error', (e) => {
                     res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: e.message }));
+                    res.end(JSON.stringify({ error: { message: e.message } }));
                 });
-                apiReq.write(data);
+                apiReq.write(reqData);
                 apiReq.end();
             } catch (err) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: '服务器内部错误' }));
+                res.end(JSON.stringify({ error: { message: '服务器内部错误' } }));
             }
         });
         return;
     }
 
-    // 静态文件服务（带 MIME 类型）
+    // 静态文件服务
     var urlPath = req.url.split('?')[0];
     if (urlPath === '/') urlPath = '/index.html';
     var publicDir = path.join(__dirname, 'public');

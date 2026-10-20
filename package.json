@@ -7,5 +7,23 @@
   },
   "engines": {
     "node": ">=22.0.0"
+  },
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CiweiStudio/CiweiPet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/CiweiStudio/CiweiPet/issues"
+  },
+  "homepage": "https://github.com/CiweiStudio/CiweiPet#readme",
+  "dependencies": {
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5",
+    "pdfreader": "^3.0.8"
   }
 }

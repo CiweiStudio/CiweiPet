@@ -511,6 +511,7 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     font-size: 14px; cursor: pointer;
     padding: 2px 6px; border-radius: 6px;
     transition: all .15s; line-height: 1;
+    margin-left: auto; /* ⭐ 加上这句，它就自己飞到最右边了 */
 }
 #ciwei-pet-dialogue .cp-dlg-close:hover {
     background: var(--cp-panel-hover);
@@ -583,7 +584,7 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 }
 #ciwei-pet-dialogue .cp-dlg-input {
     flex: 1; min-width: 0;
-    padding: 8px 12px;
+    padding: 9px 12px; /* 修正 padding，让文字居中 */
     background: var(--cp-panel-hover);
     border: 1px solid var(--cp-panel-border);
     border-radius: 8px;
@@ -592,6 +593,12 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     outline: none;
     transition: border-color .15s;
     -webkit-tap-highlight-color: transparent;
+    resize: none;
+    line-height: 1.4;
+    min-height: 40px; /* 强制和发送按钮一样高 */
+    max-height: 100px;
+    box-sizing: border-box;
+    overflow-y: hidden; /* 初始隐藏滚动条 */
 }
 #ciwei-pet-dialogue .cp-dlg-input:focus { border-color: #58a6ff; }
 #ciwei-pet-dialogue .cp-dlg-input::placeholder {
@@ -1046,4 +1053,49 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 @media (max-width: 600px) {
     #ciwei-pet-usage-panel { width: 200px; }
     #ciwei-pet-usage-panel .cp-usage-num { font-size: 20px; }
+}
+
+.cp-dlg-input {
+    flex: 1; min-width: 0;
+    padding: 10px 12px;
+    background: var(--cp-panel-hover);
+    border: 1px solid var(--cp-panel-border);
+    border-radius: 8px;
+    color: var(--cp-panel-text);
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+    -webkit-tap-highlight-color: transparent;
+    resize: none;
+    line-height: 1.4;
+    min-height: 40px; /* 确保至少有一行的高度 */
+    max-height: 100px;
+    box-sizing: border-box;
+}
+.cp-dlg-input::placeholder {
+    color: var(--cp-panel-text-muted);
+}
+
+/* ⭐ 限制超长气泡的高度，加宽并优化排版 */
+#ciwei-pet .cp-bubble.long {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    max-height: 40vh !important; /* 最高占屏幕 40% */
+    overflow-y: auto !important; /* 超出部分在框内滚动 */
+    width: 85vw !important; /* 强制占屏幕宽度的 85% */
+    max-width: 400px !important; /* 电脑端最高 400px */
+    padding: 14px 18px !important;
+    line-height: 1.7 !important; /* 行距稍微拉开 */
+    border-radius: 16px !important;
+    font-size: 14px !important; /* 字号稍微大一点 */
+    text-align: left !important; /* 文字左对齐，方便阅读 */
+}
+
+/* 美化气泡里的滚动条 */
+#ciwei-pet .cp-bubble.long::-webkit-scrollbar {
+    width: 4px;
+}
+#ciwei-pet .cp-bubble.long::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.5);
+    border-radius: 4px;
 }
