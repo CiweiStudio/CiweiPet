@@ -1084,6 +1084,8 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     overflow-y: auto !important; /* 超出部分在框内滚动 */
     width: 85vw !important; /* 强制占屏幕宽度的 85% */
     max-width: 400px !important; /* 电脑端最高 400px */
+    pointer-events: auto !important; /* ⭐ 加上这行：允许气泡接收触摸事件 */
+    -webkit-overflow-scrolling: touch; /* ⭐ 加上这行：让手机端滑动有惯性 */
     padding: 14px 18px !important;
     line-height: 1.7 !important; /* 行距稍微拉开 */
     border-radius: 16px !important;

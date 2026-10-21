@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 满血版 v27
+   🦔 Ciwei Pet · 满血版 v30
    ============================================================ */
 (function () {
     'use strict';
@@ -104,9 +104,9 @@
 '你说话简短、俏皮、温暖，偶尔会傲娇。平时聊天回复尽量简洁，但如果用户让你总结文件、或者回答复杂问题，请详细解答，不要有字数限制，不要用 markdown 格式。最多一个 emoji。' +
 '【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊（比如“我要去睡觉了”），你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
 '如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息（如时间表、要点）时，**必须使用双换行符（\\n\\n）进行分段排版**，每个科目或要点之间留一个空行，让排版极其清晰易读！' +
-'【高级能力】你可以用标签控制身体：\n' +
+'【高级能力】你可以用标签控制身体，也可以调用系统联网搜索：\n' +
 '[ACTION:spin] 原地转圈\n' +
-'[ACTION:jump] 原地跳起来\n' + // 新动作
+'[ACTION:jump] 原地跳起来\n' +
 '[ACTION:sleep] 倒地睡觉\n' +
 '[ACTION:pet] 享受被摸头\n' +
 '[ACTION:food] 吃东西\n' +
@@ -114,6 +114,7 @@
 '[IMG:angry] 切换成生气的样子\n' +
 '[IMG:surprised] 切换成惊讶的样子\n' +
 '[IMG:idle1] 切换成平常发呆的样子\n' +
+'[SEARCH:查询词] 联网搜索最新信息（如天气、新闻等）\n' +
 '你可以连续组合它们！比如用户说“先转个圈，然后生个气”，你回复：“[ACTION:spin][IMG:angry] 哼，你看我转得好不好！”\n' +
 '【注意】只要用户让你做动作，你**必须**把动作标签原样放在回复的**最开头**，千万不要漏掉！如果你漏掉标签，你的身体就不会动了！';
 
@@ -597,7 +598,7 @@
     function stopStruggle() { clearInterval(S.struggleTimer); S.struggleTimer = null; if (!S.sleeping) setImage('idle1'); }
 
     function onDown(e, isTouch) {
-        if (e.target.closest('.cp-toolbar') || e.target.closest('#ciwei-pet-menu') || e.target.closest('#ciwei-pet-submenu') || e.target.closest('#ciwei-pet-dialogue')) return;
+        if (e.target.closest('.cp-toolbar') || e.target.closest('#ciwei-pet-menu') || e.target.closest('#ciwei-pet-submenu') || e.target.closest('#ciwei-pet-dialogue') || e.target.closest('.cp-bubble')) return;
         if (e.button && e.button !== 0) return;
         initAudio();
         S.dragging = true; S.moved = false; S.longPressed = false; S.thrown = false;
@@ -1058,13 +1059,18 @@ if (d.ai) {
     function askAI(userInput) {
         S.aiThinking = true; pushHistory('user', userInput); setFace('surprised');
         fetchAIConfig().then(function (cfg) {
-            var history = getHistory(); var ctxLines = cfg.contextLines || 10;
+            var history = getHistory(); var ctxLines = cfg.contextLines || 5;
             var recent = history.slice(-ctxLines * 2 - 1, -1);
             var timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
-            var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
-            for (var i = 0; i < recent.length; i++) messages.push({ role: recent[i].role, content: recent[i].content });
-            messages.push({ role: 'system', content: '【当前真实时间：' + timeStr + '】' });
-            messages.push({ role: 'user', content: userInput });
+            // ⭐ 强制声明身份，防止聊久了失忆
+var ownerCheck = userInput.includes('爸爸') || userInput.includes('LouFung') || true; // 你这里的逻辑可以改成识别你的特定标识
+var systemWithRole = SYSTEM_PROMPT + '\n【系统提示：当前正在和你对话的用户身份是你的创造者 LouFung，请亲切地称呼他为“爸爸”。】';
+
+var messages = [{ role: 'system', content: systemWithRole }];
+for (var i = 0; i < recent.length; i++) messages.push({ role: recent[i].role, content: recent[i].content });
+
+// ⭐ 动态时间作为用户输入的前缀，绝不污染 system 缓存
+messages.push({ role: 'user', content: '【现在是：' + timeStr + '】\n' + userInput });
 
             var body = {
                 model: cfg.model || 'deepseek-v4-flash',
@@ -1083,7 +1089,31 @@ if (d.ai) {
 
     function parseAgentAction(text, userInput) {
         if (!text) return text;
-        var cleanText = text;
+        // ⭐ 拦截搜索标签
+var searchMatch = text.match(/\[SEARCH:(.+?)\]/);
+if (searchMatch) {
+    var query = searchMatch[1].trim();
+    showBubbleStream('🔍 我去网上查一下...');
+    
+    fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query })
+    }).then(res => res.json()).then(data => {
+        if (data.error) throw new Error(data.error);
+        var results = data.results || [];
+        var searchContext = results.map(r => `【${r.title}】${r.summary || r.snippet}`).join('\n\n');
+        if (!searchContext) searchContext = '未找到相关结果。';
+        
+        askAI(`【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息回答用户】：${userInput}`);
+    }).catch(err => {
+        showBubble('搜索失败：' + err.message, 4000, false);
+    });
+    
+    return null; // ⭐ 返回 null，代表正在搜索，不需要渲染气泡
+}
+
+var cleanText = text;
         var tags = cleanText.match(/\[(ACTION|IMG|FACE):\w+\]/gi) || [];
         cleanText = cleanText.replace(/\[(ACTION|IMG|FACE):\w+\]/gi, '').trim();
 
@@ -1126,7 +1156,8 @@ tags.forEach(function(tag) {
         }).then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }).then(function (json) {
             var reply = json.choices && json.choices[0] && json.choices[0].message ? json.choices[0].message.content : '（没听清…）';
             var finalReply = parseAgentAction(reply, userInput); 
-            showBubble(finalReply, 60000, false); pushHistory('assistant', finalReply);
+if (finalReply === null) return; // ⭐ 阻断 undefined 渲染
+showBubble(finalReply, 60000, false); pushHistory('assistant', finalReply);
             if (json.usage) recordUsage(json.usage.prompt_tokens || 0, json.usage.completion_tokens || 0, json.usage.prompt_cache_hit_tokens || 0);
             setFace('happy', 2500); S.mood = clamp(S.mood + 3, 0, 100); updateMoodColor(); S.aiThinking = false;
         }).catch(function (err) {
@@ -1149,7 +1180,8 @@ tags.forEach(function(tag) {
         }).then(function (fullText) {
             if (!fullText) return;
             var finalText = parseAgentAction(fullText, userInput); 
-            showBubble(finalText, 60000, true); 
+if (finalText === null) return; // ⭐ 阻断 undefined 渲染
+showBubble(finalText, 60000, true); 
             pushHistory('assistant', finalText);
             setFace('happy', 2500); S.mood = clamp(S.mood + 3, 0, 100); updateMoodColor(); S.aiThinking = false;
         }).catch(function (err) {
@@ -1402,7 +1434,7 @@ tags.forEach(function(tag) {
             }, 150);
         });
         window.addEventListener('beforeunload', function () { savePos(); saveSleep(); saveClicks(); lsSet(KEYS.last, String(S.last)); });
-        console.log('🦔 小c · v20 满血版已启动');
+        console.log('🦔 小c · v30 满血版已启动');
     }
 
     mount();

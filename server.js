@@ -17,6 +17,60 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
+// 🔍 DeepSeek 官方搜索代理接口
+if (req.url === '/api/search' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+        try {
+            const { query } = JSON.parse(body);
+            let apiConfig = { apiKey: '' };
+            if (fs.existsSync(CONFIG_PATH)) {
+                try { apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); } catch (e) {}
+            }
+            if (!apiConfig.apiKey) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: '后台未配置 API Key' }));
+            }
+
+            const postData = JSON.stringify({
+                query: query,
+                count: 5,
+                need_content: false // 只取摘要，节省Token
+            });
+
+            const options = {
+                hostname: 'api.deepseek.com',
+                path: '/v1/tools/search',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + apiConfig.apiKey
+                }
+            };
+
+            const apiReq = https.request(options, (apiRes) => {
+                let resultData = '';
+                apiRes.on('data', chunk => { resultData += chunk; });
+                apiRes.on('end', () => {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(resultData);
+                });
+            });
+            apiReq.on('error', (e) => {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            });
+            apiReq.write(postData);
+            apiReq.end();
+        } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: '搜索请求失败' }));
+        }
+    });
+    return;
+}
+
     // 📁 文件上传与解析接口
     if (req.url === '/api/upload' && req.method === 'POST') {
         let chunks = [];
