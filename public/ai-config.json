@@ -1,9 +1,0 @@
-{
-  "model": "deepseek-v4-flash",
-  "temperature": 0.7,
-  "maxTokens": 1024,
-  "reasoningEffort": "high",
-  "stream": true,
-  "contextLines": 10,
-  "apiKey": "sk-a778378040204698ad960d71b707631f"
-}

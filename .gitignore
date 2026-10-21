@@ -4,3 +4,6 @@ data/
 *.log
 *.bak
 .trashed-*
+ai-config.json
+db/ciwei.db
+.turnstile-secret
