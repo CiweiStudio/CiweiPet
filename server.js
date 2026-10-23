@@ -138,6 +138,24 @@ if (req.url === '/api/tools/sysinfo' && req.method === 'GET') {
     return;
 }
 
+// ⭐ 原生专属 MCP：红米机房状态查询
+if (req.url === '/api/tools/sysinfo' && req.method === 'GET') {
+    const { exec } = require('child_process');
+    
+    // 同时抓取磁盘、内存和温度信息（适配 Termux/Linux）
+    const cmd = "df -h /data | tail -1 | awk '{print \"存储剩余: \" $4}'; free -m | grep Mem | awk '{print \"内存剩余: \" $4 \" MB\"}'; cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{print \"CPU温度: \" $1/1000 \" ℃\"}'";
+    
+    exec(cmd, (error, stdout, stderr) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        if (error) {
+            return res.end(JSON.stringify({ error: '传感器读取失败: ' + error.message }));
+        }
+        const cleanOutput = stdout.trim().replace(/\n+/g, ' | ');
+        res.end(JSON.stringify({ status: cleanOutput }));
+    });
+    return;
+}
+
     if (req.url === '/api/chat' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
