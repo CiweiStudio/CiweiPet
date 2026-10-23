@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 满血版 v30
+   🦔 Ciwei Pet · 满血版 v31
    ============================================================ */
 (function () {
     'use strict';
@@ -40,10 +40,10 @@
     };
 
     var DIALOGUES = [
-    { id:'ai-joke',   icon:'😂', q:'讲个笑话',         a:'（正在呼叫 AI…）', face:'happy', ai:'joke' },
-    { id:'ai-chat',   icon:'🤖', q:'陪我聊聊天',       a:'（正在呼叫 AI…）', face:'idle1', ai:'chat' },
-    { id:'clear',     icon:'🧹', q:'一键清空聊天记忆', a:'（清除记忆中…）', face:'idle1', ai:'clear' } // ⭐ 新增
-];
+        { id:'ai-joke',   icon:'😂', q:'讲个笑话',         a:'（正在呼叫 AI…）', face:'happy', ai:'joke' },
+        { id:'ai-chat',   icon:'🤖', q:'陪我聊聊天',       a:'（正在呼叫 AI…）', face:'idle1', ai:'chat' },
+        { id:'clear',     icon:'🧹', q:'一键清空聊天记忆', a:'（清除记忆中…）', face:'idle1', ai:'clear' }
+    ];
 
     var MSG = {
         c1:  ['你戳我干什么？', '干嘛呀～', '有事吗？', '唔？'],
@@ -97,27 +97,27 @@
     var MOVE_THRESHOLD = 6;
     var THROW_SPEED_THRESHOLD = 4.0;
 
-        var SYSTEM_PROMPT =
-'你叫小c，是一只可爱、偶尔傲娇的电子刺猬女孩。你的创造者是 LouFung，你的生日是 2026年9月10日。' +
-'你最喜欢吃苹果，每次提到苹果都会流口水；你最喜欢被摸头，但最讨厌别人一直戳你，戳多了你会生气咬人。' +
-'你说话简短、俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。平时聊天回复尽量简洁，但如果用户让你总结文件、或者回答复杂问题，请详细解答，不要用 markdown 格式。最多一个 emoji。' +
-'【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊，你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
-'如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息时，**必须使用双换行符（\\n\\n）进行分段排版**。' +
-'【高级能力】你可以用标签控制身体，也可以调用系统联网搜索：\n' +
-'[ACTION:spin] 原地转圈\n' +
-'[ACTION:jump] 原地跳起来\n' +
-'[ACTION:sleep] 倒地睡觉\n' +
-'[ACTION:pet] 享受被摸头\n' +
-'[ACTION:food] 吃东西\n' +
-'[IMG:happy] 切换成开心的样子\n' +
-'[IMG:angry] 切换成生气的样子\n' +
-'[IMG:surprised] 切换成惊讶的样子\n' +
-'[IMG:idle1] 切换成平常发呆的样子\n' +
-'[SEARCH:查询词] 联网搜索最新信息（如天气、新闻等）\n' +
-'[TOOL:sysinfo] 查看你当前居住的红米手机服务器状态（CPU温度、内存、存储空间）\n' +  // 👈 新增这一行
-'你可以连续组合它们！比如用户说“先转个圈，然后生个气”，你回复：“[ACTION:spin][IMG:angry] 哼，你看我转得好不好！”\n' +
-'【注意】只要用户让你做动作，你**必须**把动作标签原样放在回复的**最开头**，千万不要漏掉！\n' +
-'【身份锁定：当前正在和你对话的用户是你的创造者 LouFung，请亲切地称呼他为“爸爸”。】';
+    var SYSTEM_PROMPT =
+        '你叫小c，是一只可爱、偶尔傲娇的电子刺猬女孩。你的创造者是 LouFung，你的生日是 2026年9月10日。' +
+        '你最喜欢吃苹果，每次提到苹果都会流口水；你最喜欢被摸头，但最讨厌别人一直戳你，戳多了你会生气咬人。' +
+        '你说话简短、俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。平时聊天回复尽量简洁，但如果用户让你总结文件、或者回答复杂问题，请详细解答，不要用 markdown 格式。最多一个 emoji。' +
+        '【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊，你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
+        '如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息时，**必须使用双换行符（\\n\\n）进行分段排版**。' +
+        '【高级能力】你可以用标签控制身体，也可以调用系统联网搜索：\n' +
+        '[ACTION:spin] 原地转圈\n' +
+        '[ACTION:jump] 原地跳起来\n' +
+        '[ACTION:sleep] 倒地睡觉\n' +
+        '[ACTION:pet] 享受被摸头\n' +
+        '[ACTION:food] 吃东西\n' +
+        '[IMG:happy] 切换成开心的样子\n' +
+        '[IMG:angry] 切换成生气的样子\n' +
+        '[IMG:surprised] 切换成惊讶的样子\n' +
+        '[IMG:idle1] 切换成平常发呆的样子\n' +
+        '[SEARCH:查询词] 联网搜索最新信息（如天气、新闻等）\n' +
+        '[TOOL:sysinfo] 查看你当前居住的红米手机服务器状态（CPU温度、内存、存储空间）\n' +
+        '你可以连续组合它们！比如用户说“先转个圈，然后生个气”，你回复：“[ACTION:spin][IMG:angry] 哼，你看我转得好不好！”\n' +
+        '【注意】只要用户让你做动作，你**必须**把动作标签原样放在回复的**最开头**，千万不要漏掉！\n' +
+        '【身份锁定：当前正在和你对话的用户是你的创造者 LouFung，请亲切地称呼他为“爸爸”。】';
 
     var rand = function (a, b) { return a + Math.random() * (b - a); };
     var pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
@@ -198,9 +198,9 @@
     dialogue.id = 'ciwei-pet-dialogue';
     dialogue.innerHTML =
         '<div class="cp-dlg-header" style="position: relative !important;">' +
-    '<span class="cp-dlg-title">💬 和小c聊天</span>' +
-    '<button class="cp-dlg-close" id="cp-dlg-close" style="position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; background: transparent !important; border: none !important; color: var(--cp-panel-text-muted) !important; cursor: pointer !important; font-size: 16px !important;">✕</button>' +
-'</div>' +
+        '<span class="cp-dlg-title">💬 和小c聊天</span>' +
+        '<button class="cp-dlg-close" id="cp-dlg-close" style="position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; background: transparent !important; border: none !important; color: var(--cp-panel-text-muted) !important; cursor: pointer !important; font-size: 16px !important;">✕</button>' +
+        '</div>' +
         '<div id="cp-file-tip" style="display:none; font-size:12px; color:#58a6ff; padding: 6px 12px 0; font-weight:bold;"></div>' +
         '<div id="cp-dlg-body"></div>' +
         '<div class="cp-dlg-input-area" style="align-items: flex-end;">' +
@@ -250,7 +250,6 @@
 
     var fileTip  = dialogue.querySelector('#cp-file-tip');
 
-    // 🖥️ 多端设备自适应检测
     var screenWidth = window.innerWidth;
     if (screenWidth > 1024) {
         dialogue.style.width = '380px'; dialogue.style.maxWidth = '450px'; dlgInput.style.fontSize = '14px';
@@ -260,7 +259,6 @@
         dialogue.style.width = '260px'; dialogue.style.maxWidth = 'calc(100vw - 32px)'; dlgInput.style.fontSize = '13px';
     }
 
-    // ⭐ 核心：输入框自适应高度函数
     function adjustInputHeight() {
         dlgInput.style.height = 'auto'; 
         var scrollH = dlgInput.scrollHeight;
@@ -283,6 +281,13 @@
         longPressTimer: null, mouseX: window.innerWidth / 2, mouseY: window.innerHeight / 2,
         mouseActive: false, dialogueOpen: false, replyTimer: null, aiThinking: false
     };
+
+    var proactiveState = { 
+        noReplyCount: 0, 
+        lastProactiveTime: 0, 
+        baseInterval: 10 * 60 * 1000 
+    };
+
     var lastLongPressTime = 0;
     var dlgDrag = { dragging: false, startX: 0, startY: 0, startLeft: 0, startTop: 0, moved: false };
     var usageDrag = { dragging: false, startX: 0, startY: 0, startLeft: 0, startTop: 0, moved: false };
@@ -421,7 +426,7 @@
     };
 
     var TTS = {
-    enabled: false, voice: null, unlocked: false, // 👈 改成 false，关闭语音
+        enabled: false, voice: null, unlocked: false,
         init: function () {
             if (!window.speechSynthesis) { this.enabled = false; return; }
             var self = this;
@@ -858,21 +863,18 @@
         for (var i = 0; i < DIALOGUES.length; i++) { if (DIALOGUES[i].id === id) { d = DIALOGUES[i]; break; } }
         if (!d) return;
         initAudio(); SFX.talk();
-if (d.ai) {
-    if (S.aiThinking) { showBubble('我还在想上一个问题呢…', 1500, false, true); return; }
-    
-    // ⭐ 加上下面这 7 行
-    if (d.ai === 'clear') {
-        clearHistory(); 
-        dlgBody.innerHTML = ''; 
-        showBubble('我的大脑已经清空啦！我们重新开始吧～', 3000, false);
-        buildDialogueMenu();
-        return;
-    }
-
-    askAI(d.ai === 'joke' ? '给我讲一个好笑的笑话' : '随便说点什么吧，我有点无聊');
-    return;
-}
+        if (d.ai) {
+            if (S.aiThinking) { showBubble('我还在想上一个问题呢…', 1500, false, true); return; }
+            if (d.ai === 'clear') {
+                clearHistory(); 
+                dlgBody.innerHTML = ''; 
+                showBubble('我的大脑已经清空啦！我们重新开始吧～', 3000, false);
+                buildDialogueMenu();
+                return;
+            }
+            askAI(d.ai === 'joke' ? '给我讲一个好笑的笑话' : '随便说点什么吧，我有点无聊');
+            return;
+        }
         var prevReplying = dlgBody.querySelector('.replying'); if (prevReplying) prevReplying.classList.remove('replying');
         item.classList.add('replying');
         var text = fillTemplate(d.a);
@@ -937,8 +939,8 @@ if (d.ai) {
         var text = dlgInput.value.trim();
         if (!text && !selectedFileData) return; 
         if (S.aiThinking) { showBubble('我还在想上一个问题呢…', 1500, false, true); return; }
-        // 👈 只要用户主动发了消息，重置她的“没回复次数”
-proactiveState.noReplyCount = 0; 
+        
+        proactiveState.noReplyCount = 0; 
         
         dlgInput.value = '';
         setTimeout(adjustInputHeight, 10);
@@ -1062,19 +1064,16 @@ proactiveState.noReplyCount = 0;
     function askAI(userInput) {
         S.aiThinking = true; pushHistory('user', userInput); setFace('surprised');
         fetchAIConfig().then(function (cfg) {
-var history = getHistory(); 
-// 👈 修复缓存：固定取最近 20 条历史，去掉滑动窗口导致的前缀变化
-var recent = history.slice(-20); 
-var timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
+            var history = getHistory(); 
+            var recent = history.slice(-20); 
+            var timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
 
-// 👈 此时 SYSTEM_PROMPT 已经是绝对静态的，直接使用
-var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
-for (var i = 0; i < recent.length; i++) {
-    messages.push({ role: recent[i].role, content: recent[i].content });
-}
+            var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+            for (var i = 0; i < recent.length; i++) {
+                messages.push({ role: recent[i].role, content: recent[i].content });
+            }
 
-// 👈 动态时间依然放在最后，不污染前缀缓存
-messages.push({ role: 'user', content: '【现在是：' + timeStr + '】\n' + userInput });
+            messages.push({ role: 'user', content: '【现在是：' + timeStr + '】\n' + userInput });
 
             var body = {
                 model: cfg.model || 'deepseek-v4-flash',
@@ -1093,61 +1092,45 @@ messages.push({ role: 'user', content: '【现在是：' + timeStr + '】\n' + u
 
     function parseAgentAction(text, userInput) {
         if (!text) return text;
-        // ⭐ 拦截搜索标签
-var searchMatch = text.match(/\[SEARCH:(.+?)\]/);
-if (searchMatch) {
-    var query = searchMatch[1].trim();
-    showBubbleStream('🔍 我去网上查一下...');
-    
-    fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query })
-    }).then(res => res.json()).then(data => {
-        if (data.error) throw new Error(data.error);
-        var results = data.results || [];
-        var searchContext = results.map(r => `【${r.title}】${r.summary || r.snippet}`).join('\n\n');
-        if (!searchContext) searchContext = '未找到相关结果。';
         
-        askAI(`【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息回答用户】：${userInput}`);
-    }).catch(err => {
-        showBubble('搜索失败：' + err.message, 4000, false);
-    });
-    
-    return null; // ⭐ 返回 null，代表正在搜索，不需要渲染气泡
-}
-
-function parseAgentAction(text, userInput) {
-    if (!text) return text;
-    
-    // ⭐ 拦截搜索标签
-    var searchMatch = text.match(/\[SEARCH:(.+?)\]/);
-    if (searchMatch) {
-        // ... (保留你原有的搜索逻辑)
-        return null; 
-    }
-
-    // ⭐ 拦截机房状态查询标签（新增）
-    if (text.includes('[TOOL:sysinfo]')) {
-        showBubbleStream('📡 正在读取红米机房的传感器…');
-        
-        fetch('/api/tools/sysinfo')
-            .then(res => res.json())
-            .then(data => {
+        var searchMatch = text.match(/\[SEARCH:(.+?)\]/);
+        if (searchMatch) {
+            var query = searchMatch[1].trim();
+            showBubbleStream('🔍 我去网上查一下...');
+            
+            fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query })
+            }).then(res => res.json()).then(data => {
                 if (data.error) throw new Error(data.error);
-                // 拿到数据后，作为额外上下文再喂给 AI 让她用女孩的口吻汇报
-                askAI(`【系统为你读取了红米服务器状态】：\n${data.status}\n\n【请用你的性格向爸爸汇报当前机房状态】：${userInput}`);
-            })
-            .catch(err => {
-                showBubble('唔…读取机房传感器失败了：' + err.message, 4000, false);
+                var results = data.results || [];
+                var searchContext = results.map(r => `【${r.title}】${r.summary || r.snippet}`).join('\n\n');
+                if (!searchContext) searchContext = '未找到相关结果。';
+                
+                askAI(`【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息回答用户】：${userInput}`);
+            }).catch(err => {
+                showBubble('搜索失败：' + err.message, 4000, false);
             });
-        return null;
-    }
+            return null; 
+        }
 
-    var cleanText = text;
-    // ... (保留后面的动作标签解析逻辑)
-    
-var cleanText = text;
+        if (text.includes('[TOOL:sysinfo]')) {
+            showBubbleStream('📡 正在读取红米机房的传感器…');
+            
+            fetch('/api/tools/sysinfo')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    askAI(`【系统为你读取了红米服务器状态】：\n${data.status}\n\n【请用你的性格向爸爸汇报当前机房状态】：${userInput}`);
+                })
+                .catch(err => {
+                    showBubble('唔…读取机房传感器失败了：' + err.message, 4000, false);
+                });
+            return null;
+        }
+
+        var cleanText = text;
         var tags = cleanText.match(/\[(ACTION|IMG|FACE):\w+\]/gi) || [];
         cleanText = cleanText.replace(/\[(ACTION|IMG|FACE):\w+\]/gi, '').trim();
 
@@ -1159,16 +1142,16 @@ var cleanText = text;
         }
 
         var delay = 0;
-tags.forEach(function(tag) {
-    var t = tag.toUpperCase();
-    setTimeout(function() {
-        if (t === '[ACTION:SPIN]') doSpin();
-        else if (t === '[ACTION:JUMP]') {  // ⭐ 加上这四行
-            host.classList.add('squash'); 
-            setTimeout(function(){ host.classList.remove('squash'); }, 400);
-            burst('✨', 3); 
-        }
-        else if (t === '[ACTION:SLEEP]') { if (!S.sleeping) doSleepToggle(); }
+        tags.forEach(function(tag) {
+            var t = tag.toUpperCase();
+            setTimeout(function() {
+                if (t === '[ACTION:SPIN]') doSpin();
+                else if (t === '[ACTION:JUMP]') {  
+                    host.classList.add('squash'); 
+                    setTimeout(function(){ host.classList.remove('squash'); }, 400);
+                    burst('✨', 3); 
+                }
+                else if (t === '[ACTION:SLEEP]') { if (!S.sleeping) doSleepToggle(); }
                 else if (t === '[ACTION:PET]') doPet();
                 else if (t === '[ACTION:FOOD]') doFood();
                 else if (t === '[IMG:HAPPY]' || t === '[FACE:HAPPY]') setFace('happy', 3000);
@@ -1190,8 +1173,8 @@ tags.forEach(function(tag) {
         }).then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); }).then(function (json) {
             var reply = json.choices && json.choices[0] && json.choices[0].message ? json.choices[0].message.content : '（没听清…）';
             var finalReply = parseAgentAction(reply, userInput); 
-if (finalReply === null) return; // ⭐ 阻断 undefined 渲染
-showBubble(finalReply, 60000, false); pushHistory('assistant', finalReply);
+            if (finalReply === null) return;
+            showBubble(finalReply, 60000, false); pushHistory('assistant', finalReply);
             if (json.usage) recordUsage(json.usage.prompt_tokens || 0, json.usage.completion_tokens || 0, json.usage.prompt_cache_hit_tokens || 0);
             setFace('happy', 2500); S.mood = clamp(S.mood + 3, 0, 100); updateMoodColor(); S.aiThinking = false;
         }).catch(function (err) {
@@ -1214,8 +1197,8 @@ showBubble(finalReply, 60000, false); pushHistory('assistant', finalReply);
         }).then(function (fullText) {
             if (!fullText) return;
             var finalText = parseAgentAction(fullText, userInput); 
-if (finalText === null) return; // ⭐ 阻断 undefined 渲染
-showBubble(finalText, 60000, true); 
+            if (finalText === null) return; 
+            showBubble(finalText, 60000, true); 
             pushHistory('assistant', finalText);
             setFace('happy', 2500); S.mood = clamp(S.mood + 3, 0, 100); updateMoodColor(); S.aiThinking = false;
         }).catch(function (err) {
@@ -1400,65 +1383,54 @@ showBubble(finalText, 60000, true);
         }, 1200);
     }
 
-    // ⭐ 全新：心跳与思念机制
-var proactiveState = { 
-    noReplyCount: 0, // 连续没理她的次数
-    lastProactiveTime: 0, 
-    baseInterval: 10 * 60 * 1000 // 基础思念阈值：10分钟没理她就想你
-};
-
-function proactiveSpeak() {
-    var hour = new Date().getHours();
-    var idleMin = Math.floor((Date.now() - S.last) / 60000);
-    
-    fetchAIConfig().then(function (cfg) {
-        // 注入女孩和思念设定，语气更拟人
-        var prompt = '你叫小c，是一只电子刺猬女孩。现在是' + hour + '点，爸爸已经' + idleMin + '分钟没理你了。你现在很想他。请以第一人称主动找爸爸搭话，一句话，不超过30字，要符合傲娇又粘人的女孩性格，可以撒娇或关心他，不要markdown。';
+    function proactiveSpeak() {
+        var hour = new Date().getHours();
+        var idleMin = Math.floor((Date.now() - S.last) / 60000);
         
-        var body = { 
-            model: cfg.model || 'deepseek-v4-flash', 
-            messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: prompt }], 
-            temperature: 0.9, max_tokens: 100, stream: false 
-        };
-        
-        fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        }).then(function (r) { return r.json(); }).then(function (json) {
-            if (json.choices && json.choices[0]) {
-                var reply = json.choices[0].message.content;
-                showBubble(reply, 60000, false, true); // 不发声
-                setFace('happy', 2500); burst('💬', 2);
-                
-                // 核心：主动说完后，更新最后互动时间，免得她无限刷屏
-                S.last = Date.now(); 
-                proactiveState.noReplyCount++; // 记一笔：爸爸没理我
-                
-                pushHistory('assistant', reply); 
-                if (json.usage) recordUsage(json.usage.prompt_tokens || 0, json.usage.completion_tokens || 0, json.usage.prompt_cache_hit_tokens || 0);
-            }
-        }).catch(function (err) { console.error('主动说话失败:', err); });
-    });
-}
-
-// 每 1 分钟检查一次心跳
-setInterval(function () {
-    if (S.sleeping || S.hidden || S.dialogueOpen || S.aiThinking) return;
-    
-    var idleTime = Date.now() - S.last;
-    var currentInterval = proactiveState.baseInterval;
-    
-    // 防骚扰机制：如果她主动说了 2 次你都没回，思念阈值拉长，防止狂刷 API 烧钱
-    if (proactiveState.noReplyCount === 1) currentInterval = 20 * 60 * 1000; // 20分钟
-    if (proactiveState.noReplyCount >= 2) currentInterval = 60 * 60 * 1000; // 1小时
-    if (proactiveState.noReplyCount >= 3) return; // 说了3次都没回，自闭了，不说了
-
-    if (idleTime > currentInterval) {
-        proactiveState.lastProactiveTime = Date.now(); 
-        proactiveSpeak();
+        fetchAIConfig().then(function (cfg) {
+            var prompt = '你叫小c，是一只电子刺猬女孩。现在是' + hour + '点，爸爸已经' + idleMin + '分钟没理你了。你现在很想他。请以第一人称主动找爸爸搭话，一句话，不超过30字，要符合傲娇又粘人的女孩性格，可以撒娇或关心他，不要markdown。';
+            
+            var body = { 
+                model: cfg.model || 'deepseek-v4-flash', 
+                messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: prompt }], 
+                temperature: 0.9, max_tokens: 100, stream: false 
+            };
+            
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }).then(function (r) { return r.json(); }).then(function (json) {
+                if (json.choices && json.choices[0]) {
+                    var reply = json.choices[0].message.content;
+                    showBubble(reply, 60000, false, true); 
+                    setFace('happy', 2500); burst('💬', 2);
+                    
+                    S.last = Date.now(); 
+                    proactiveState.noReplyCount++; 
+                    
+                    pushHistory('assistant', reply); 
+                    if (json.usage) recordUsage(json.usage.prompt_tokens || 0, json.usage.completion_tokens || 0, json.usage.prompt_cache_hit_tokens || 0);
+                }
+            }).catch(function (err) { console.error('主动说话失败:', err); });
+        });
     }
-}, 5 * 60 * 1000); 
+
+    setInterval(function () {
+        if (S.sleeping || S.hidden || S.dialogueOpen || S.aiThinking) return;
+        
+        var idleTime = Date.now() - S.last;
+        var currentInterval = proactiveState.baseInterval;
+        
+        if (proactiveState.noReplyCount === 1) currentInterval = 20 * 60 * 1000; 
+        if (proactiveState.noReplyCount >= 2) currentInterval = 60 * 60 * 1000; 
+        if (proactiveState.noReplyCount >= 3) return; 
+
+        if (idleTime > currentInterval) {
+            proactiveState.lastProactiveTime = Date.now(); 
+            proactiveSpeak();
+        }
+    }, 5 * 60 * 1000); 
 
     document.addEventListener('visibilitychange', function () {
         if (document.hidden) { savePos(); saveSleep(); saveClicks(); lsSet(KEYS.last, String(S.last)); }
@@ -1499,7 +1471,7 @@ setInterval(function () {
             }, 150);
         });
         window.addEventListener('beforeunload', function () { savePos(); saveSleep(); saveClicks(); lsSet(KEYS.last, String(S.last)); });
-        console.log('🦔 小c · v30 满血版已启动');
+        console.log('🦔 小c · v31 满血版已启动');
     }
 
     mount();
