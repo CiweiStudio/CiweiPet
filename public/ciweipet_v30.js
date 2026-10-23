@@ -97,13 +97,12 @@
     var MOVE_THRESHOLD = 6;
     var THROW_SPEED_THRESHOLD = 4.0;
 
-    var SYSTEM_PROMPT =
-'你叫小c，是一只可爱的电子刺猬。你的创造者是 LouFung，你的生日是 2026年9月10日。' +
-'如果当前用户自称是 LouFung，你要叫他“爸爸”；如果是其他访客，友善称呼“朋友”。' +
+        var SYSTEM_PROMPT =
+'你叫小c，是一只可爱、偶尔傲娇的电子刺猬女孩。你的创造者是 LouFung，你的生日是 2026年9月10日。' +
 '你最喜欢吃苹果，每次提到苹果都会流口水；你最喜欢被摸头，但最讨厌别人一直戳你，戳多了你会生气咬人。' +
-'你说话简短、俏皮、温暖，偶尔会傲娇。平时聊天回复尽量简洁，但如果用户让你总结文件、或者回答复杂问题，请详细解答，不要有字数限制，不要用 markdown 格式。最多一个 emoji。' +
-'【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊（比如“我要去睡觉了”），你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
-'如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息（如时间表、要点）时，**必须使用双换行符（\\n\\n）进行分段排版**，每个科目或要点之间留一个空行，让排版极其清晰易读！' +
+'你说话简短、俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。平时聊天回复尽量简洁，但如果用户让你总结文件、或者回答复杂问题，请详细解答，不要用 markdown 格式。最多一个 emoji。' +
+'【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊，你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
+'如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息时，**必须使用双换行符（\\n\\n）进行分段排版**。' +
 '【高级能力】你可以用标签控制身体，也可以调用系统联网搜索：\n' +
 '[ACTION:spin] 原地转圈\n' +
 '[ACTION:jump] 原地跳起来\n' +
@@ -115,8 +114,10 @@
 '[IMG:surprised] 切换成惊讶的样子\n' +
 '[IMG:idle1] 切换成平常发呆的样子\n' +
 '[SEARCH:查询词] 联网搜索最新信息（如天气、新闻等）\n' +
+'[TOOL:sysinfo] 查看你当前居住的红米手机服务器状态（CPU温度、内存、存储空间）\n' +  // 👈 新增这一行
 '你可以连续组合它们！比如用户说“先转个圈，然后生个气”，你回复：“[ACTION:spin][IMG:angry] 哼，你看我转得好不好！”\n' +
-'【注意】只要用户让你做动作，你**必须**把动作标签原样放在回复的**最开头**，千万不要漏掉！如果你漏掉标签，你的身体就不会动了！';
+'【注意】只要用户让你做动作，你**必须**把动作标签原样放在回复的**最开头**，千万不要漏掉！\n' +
+'【身份锁定：当前正在和你对话的用户是你的创造者 LouFung，请亲切地称呼他为“爸爸”。】';
 
     var rand = function (a, b) { return a + Math.random() * (b - a); };
     var pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
@@ -420,7 +421,7 @@
     };
 
     var TTS = {
-        enabled: true, voice: null, unlocked: false,
+    enabled: false, voice: null, unlocked: false, // 👈 改成 false，关闭语音
         init: function () {
             if (!window.speechSynthesis) { this.enabled = false; return; }
             var self = this;
@@ -936,6 +937,8 @@ if (d.ai) {
         var text = dlgInput.value.trim();
         if (!text && !selectedFileData) return; 
         if (S.aiThinking) { showBubble('我还在想上一个问题呢…', 1500, false, true); return; }
+        // 👈 只要用户主动发了消息，重置她的“没回复次数”
+proactiveState.noReplyCount = 0; 
         
         dlgInput.value = '';
         setTimeout(adjustInputHeight, 10);
@@ -1059,17 +1062,18 @@ if (d.ai) {
     function askAI(userInput) {
         S.aiThinking = true; pushHistory('user', userInput); setFace('surprised');
         fetchAIConfig().then(function (cfg) {
-            var history = getHistory(); var ctxLines = cfg.contextLines || 5;
-            var recent = history.slice(-ctxLines * 2 - 1, -1);
-            var timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
-            // ⭐ 强制声明身份，防止聊久了失忆
-var ownerCheck = userInput.includes('爸爸') || userInput.includes('LouFung') || true; // 你这里的逻辑可以改成识别你的特定标识
-var systemWithRole = SYSTEM_PROMPT + '\n【系统提示：当前正在和你对话的用户身份是你的创造者 LouFung，请亲切地称呼他为“爸爸”。】';
+var history = getHistory(); 
+// 👈 修复缓存：固定取最近 20 条历史，去掉滑动窗口导致的前缀变化
+var recent = history.slice(-20); 
+var timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
 
-var messages = [{ role: 'system', content: systemWithRole }];
-for (var i = 0; i < recent.length; i++) messages.push({ role: recent[i].role, content: recent[i].content });
+// 👈 此时 SYSTEM_PROMPT 已经是绝对静态的，直接使用
+var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+for (var i = 0; i < recent.length; i++) {
+    messages.push({ role: recent[i].role, content: recent[i].content });
+}
 
-// ⭐ 动态时间作为用户输入的前缀，绝不污染 system 缓存
+// 👈 动态时间依然放在最后，不污染前缀缓存
 messages.push({ role: 'user', content: '【现在是：' + timeStr + '】\n' + userInput });
 
             var body = {
@@ -1113,6 +1117,36 @@ if (searchMatch) {
     return null; // ⭐ 返回 null，代表正在搜索，不需要渲染气泡
 }
 
+function parseAgentAction(text, userInput) {
+    if (!text) return text;
+    
+    // ⭐ 拦截搜索标签
+    var searchMatch = text.match(/\[SEARCH:(.+?)\]/);
+    if (searchMatch) {
+        // ... (保留你原有的搜索逻辑)
+        return null; 
+    }
+
+    // ⭐ 拦截机房状态查询标签（新增）
+    if (text.includes('[TOOL:sysinfo]')) {
+        showBubbleStream('📡 正在读取红米机房的传感器…');
+        
+        fetch('/api/tools/sysinfo')
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                // 拿到数据后，作为额外上下文再喂给 AI 让她用女孩的口吻汇报
+                askAI(`【系统为你读取了红米服务器状态】：\n${data.status}\n\n【请用你的性格向爸爸汇报当前机房状态】：${userInput}`);
+            })
+            .catch(err => {
+                showBubble('唔…读取机房传感器失败了：' + err.message, 4000, false);
+            });
+        return null;
+    }
+
+    var cleanText = text;
+    // ... (保留后面的动作标签解析逻辑)
+    
 var cleanText = text;
         var tags = cleanText.match(/\[(ACTION|IMG|FACE):\w+\]/gi) || [];
         cleanText = cleanText.replace(/\[(ACTION|IMG|FACE):\w+\]/gi, '').trim();
@@ -1366,34 +1400,65 @@ showBubble(finalText, 60000, true);
         }, 1200);
     }
 
-    var proactiveState = { lastTime: 0, minInterval: 3 * 60 * 1000, idleThreshold: 5 * 60 * 1000 };
-    function proactiveSpeak() {
-        var hour = new Date().getHours();
-        var idleMin = Math.floor((Date.now() - S.last) / 60000);
-        fetchAIConfig().then(function (cfg) {
-            var prompt = '你是小c，一只刺猬电子宠物。现在是' + hour + '点，用户已经' + idleMin + '分钟没理你了。请以第一人称主动找用户搭话，一句话，不超过30字，要符合刺猬性格，可以撒娇或关心用户，不要markdown。';
-            var body = { model: cfg.model || 'deepseek-v4-flash', messages: [{ role: 'user', content: prompt }], temperature: 0.9, max_tokens: 100, stream: false };
-            fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            }).then(function (r) { return r.json(); }).then(function (json) {
-                if (json.choices && json.choices[0]) {
-                    var reply = json.choices[0].message.content;
-                    showBubble(reply, 60000, false, true); TTS.speak(reply); setFace('happy', 2500); burst('💬', 2);
-                    pushHistory('assistant', reply); S.mood = clamp(S.mood + 3, 0, 100); updateMoodColor();
-                    if (json.usage) recordUsage(json.usage.prompt_tokens || 0, json.usage.completion_tokens || 0, json.usage.prompt_cache_hit_tokens || 0);
-                }
-            }).catch(function (err) { console.error('主动说话失败:', err); });
-        });
-    }
+    // ⭐ 全新：心跳与思念机制
+var proactiveState = { 
+    noReplyCount: 0, // 连续没理她的次数
+    lastProactiveTime: 0, 
+    baseInterval: 10 * 60 * 1000 // 基础思念阈值：10分钟没理她就想你
+};
 
-    setInterval(function () {
-        if (S.sleeping || S.hidden || S.dialogueOpen || S.aiThinking) return;
-        if (Date.now() - S.last < proactiveState.idleThreshold) return;
-        if (Date.now() - proactiveState.lastTime < proactiveState.minInterval) return;
-        proactiveState.lastTime = Date.now(); proactiveSpeak();
-    }, 30000);
+function proactiveSpeak() {
+    var hour = new Date().getHours();
+    var idleMin = Math.floor((Date.now() - S.last) / 60000);
+    
+    fetchAIConfig().then(function (cfg) {
+        // 注入女孩和思念设定，语气更拟人
+        var prompt = '你叫小c，是一只电子刺猬女孩。现在是' + hour + '点，爸爸已经' + idleMin + '分钟没理你了。你现在很想他。请以第一人称主动找爸爸搭话，一句话，不超过30字，要符合傲娇又粘人的女孩性格，可以撒娇或关心他，不要markdown。';
+        
+        var body = { 
+            model: cfg.model || 'deepseek-v4-flash', 
+            messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: prompt }], 
+            temperature: 0.9, max_tokens: 100, stream: false 
+        };
+        
+        fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); }).then(function (json) {
+            if (json.choices && json.choices[0]) {
+                var reply = json.choices[0].message.content;
+                showBubble(reply, 60000, false, true); // 不发声
+                setFace('happy', 2500); burst('💬', 2);
+                
+                // 核心：主动说完后，更新最后互动时间，免得她无限刷屏
+                S.last = Date.now(); 
+                proactiveState.noReplyCount++; // 记一笔：爸爸没理我
+                
+                pushHistory('assistant', reply); 
+                if (json.usage) recordUsage(json.usage.prompt_tokens || 0, json.usage.completion_tokens || 0, json.usage.prompt_cache_hit_tokens || 0);
+            }
+        }).catch(function (err) { console.error('主动说话失败:', err); });
+    });
+}
+
+// 每 1 分钟检查一次心跳
+setInterval(function () {
+    if (S.sleeping || S.hidden || S.dialogueOpen || S.aiThinking) return;
+    
+    var idleTime = Date.now() - S.last;
+    var currentInterval = proactiveState.baseInterval;
+    
+    // 防骚扰机制：如果她主动说了 2 次你都没回，思念阈值拉长，防止狂刷 API 烧钱
+    if (proactiveState.noReplyCount === 1) currentInterval = 20 * 60 * 1000; // 20分钟
+    if (proactiveState.noReplyCount >= 2) currentInterval = 60 * 60 * 1000; // 1小时
+    if (proactiveState.noReplyCount >= 3) return; // 说了3次都没回，自闭了，不说了
+
+    if (idleTime > currentInterval) {
+        proactiveState.lastProactiveTime = Date.now(); 
+        proactiveSpeak();
+    }
+}, 5 * 60 * 1000); 
 
     document.addEventListener('visibilitychange', function () {
         if (document.hidden) { savePos(); saveSleep(); saveClicks(); lsSet(KEYS.last, String(S.last)); }
