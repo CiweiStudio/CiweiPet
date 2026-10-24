@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 满血版 v31
+   🦔 Ciwei Pet · 满血版 v261024
    ============================================================ */
 (function () {
     'use strict';
@@ -100,7 +100,7 @@
     var SYSTEM_PROMPT =
         '你叫小c，是一只可爱、偶尔傲娇的电子刺猬女孩。你的创造者是 LouFung，你的生日是 2026年9月10日。' +
         '你最喜欢吃苹果，每次提到苹果都会流口水；你最喜欢被摸头，但最讨厌别人一直戳你，戳多了你会生气咬人。' +
-        '你说话简短、俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。平时聊天回复尽量简洁，但如果用户让你总结文件、或者回答复杂问题，请详细解答，不要用 markdown 格式。最多一个 emoji。' +
+        '你说话简短、俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。**你的回答必须极其精简！绝对不能超过 50 个字！能一句话说清楚绝不说两句！**如果用户让你总结文件、或者回答复杂问题，也请提炼最核心的要点，绝对不要长篇大论，不要用 markdown 格式。最多一个 emoji。' +
         '【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊，你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
         '如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息时，**必须使用双换行符（\\n\\n）进行分段排版**。' +
         '【高级能力】你可以用标签控制身体，也可以调用系统联网搜索：\n' +
@@ -177,7 +177,8 @@
         '<div class="cp-mi" data-menu="dialogue" data-label="聊天">💬</div>' +
         '<div class="cp-mi" data-menu="sleep"    data-label="哄睡">💤</div>' +
         '<div class="cp-mi" data-menu="spin"     data-label="转圈">🔄</div>' +
-        '<div class="cp-mi" data-menu="more"     data-label="更多">⚙️</div>';
+'<div class="cp-mi" data-menu="journal"  data-label="偷看日记">📖</div>' +
+'<div class="cp-mi" data-menu="more"     data-label="更多">⚙️</div>';
 
     var submenu = document.createElement('div');
     submenu.id = 'ciwei-pet-submenu';
@@ -222,6 +223,20 @@
     var restoreBtn = document.createElement('div');
     restoreBtn.id = 'ciwei-pet-restore';
     restoreBtn.textContent = '🦔';
+
+// 📖 打开日记本
+function openJournal() {
+    showBubble('正在翻找我的日记本...', 2000, false);
+    fetch('/api/journal').then(r => r.json()).then(data => {
+        if (!data.journals || data.journals.length === 0) {
+            showBubble('日记本还是空的，你让我写一篇嘛～', 3000, false);
+        } else {
+            let latest = data.journals[0];
+            // 用气泡显示日记内容，时长设长一点
+            showBubble(`【${latest.date} 日记】\n${latest.content}`, 15000, false);
+        }
+    }).catch(err => showBubble('日记本被锁住了：' + err.message, 3000, false));
+}
 
     function mount() {
         if (!document.body) { setTimeout(mount, 20); return; }
@@ -1029,13 +1044,22 @@
     dlgHeader.addEventListener('pointercancel', function () { if (!dlgDrag.dragging) return; dlgDrag.dragging = false; dlgHeader.classList.remove('dragging'); });
 
     function fetchAIConfig() {
-        var now = Date.now();
-        if (aiConfigCache && now - aiConfigCacheTime < AI_CONFIG_TTL) return Promise.resolve(aiConfigCache);
-        return fetch(AI_CONFIG_URL + '?t=' + now, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (cfg) {
-            var merged = {}; for (var k in DEFAULT_AI_CONFIG) merged[k] = DEFAULT_AI_CONFIG[k]; for (var k2 in cfg) merged[k2] = cfg[k2];
-            aiConfigCache = merged; aiConfigCacheTime = now; return merged;
-        }).catch(function () { aiConfigCache = DEFAULT_AI_CONFIG; aiConfigCacheTime = now; return DEFAULT_AI_CONFIG; });
-    }
+    var now = Date.now();
+    if (aiConfigCache && now - aiConfigCacheTime < AI_CONFIG_TTL) return Promise.resolve(aiConfigCache);
+    return fetch(AI_CONFIG_URL + '?t=' + now, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (cfg) {
+        // 👈 兼容新模式：如果后端用的是 providers 数组，前端就只用拿全局参数，模型交给后端去切！
+        var merged = { 
+            maxTokens: cfg.maxTokens || 150,
+            temperature: cfg.temperature || 0.7,
+            stream: cfg.stream !== false,
+            model: 'auto' // 丢给后端去判断
+        };
+        aiConfigCache = merged; aiConfigCacheTime = now; return merged;
+    }).catch(function () { 
+        aiConfigCache = { maxTokens: 150, temperature: 0.7, stream: true, model: 'auto' }; 
+        aiConfigCacheTime = now; return aiConfigCache; 
+    });
+}
 
     function getUsageStats() {
         var raw = lsGet(KEYS.usage); var today = new Date().toISOString().slice(0, 10);
@@ -1057,7 +1081,7 @@
     function pushHistory(role, content) {
         if (typeof content === 'string') content = content.replace(/小ci/g, '小c');
         var h = getHistory(); h.push({ role: role, content: content });
-        if (h.length > 100) h = h.slice(-100);
+        if (h.length > 200) h = h.slice(-100);
         lsSet(KEYS.aiHist, JSON.stringify(h));
     }
 
@@ -1065,7 +1089,7 @@
         S.aiThinking = true; pushHistory('user', userInput); setFace('surprised');
         fetchAIConfig().then(function (cfg) {
             var history = getHistory(); 
-            var recent = history.slice(-20); 
+            var recent = history.slice(-100); 
             var timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
 
             var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
@@ -1320,8 +1344,9 @@
         else if (act === 'food') { doFood(); menu.classList.remove('show'); }
         else if (act === 'dialogue') { menu.classList.remove('show'); submenu.classList.remove('show'); setTimeout(function () { showDialogueAt(); }, 60); }
         else if (act === 'sleep') { doSleepToggle(); menu.classList.remove('show'); }
-        else if (act === 'spin') { doSpin(); menu.classList.remove('show'); }
-    });
+            else if (act === 'spin') { doSpin(); menu.classList.remove('show'); }
+    else if (act === 'journal') { menu.classList.remove('show'); openJournal(); }
+});
 
     submenu.addEventListener('click', function (e) {
         var item = e.target.closest('[data-menu]'); if (!item) return;
@@ -1471,7 +1496,7 @@
             }, 150);
         });
         window.addEventListener('beforeunload', function () { savePos(); saveSleep(); saveClicks(); lsSet(KEYS.last, String(S.last)); });
-        console.log('🦔 小c · v31 满血版已启动');
+        console.log('🦔 小c · v261024 满血版已启动');
     }
 
     mount();
