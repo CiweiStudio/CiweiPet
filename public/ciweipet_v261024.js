@@ -7,6 +7,31 @@
     if (window.__ciweiPetLoaded) return;
     window.__ciweiPetLoaded = true;
 
+    // ⭐ 注入 UI 2.0 优雅动画与气泡自适应样式
+var style = document.createElement('style');
+style.innerHTML = `
+    /* 气泡出现的果冻动画 */
+    .cp-bubble {
+        transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease !important;
+        transform: scale(0.8) translateY(15px);
+        opacity: 0;
+        will-change: transform, opacity;
+    }
+    .cp-bubble.show {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+    /* 长文本自适应，最高占屏幕 45%，可滚动 */
+    .cp-bubble.long {
+        max-height: 45vh !important;
+        overflow-y: auto !important;
+        line-height: 1.6;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+    }
+`;
+document.head.appendChild(style);
+
     var IMG_BASE = './';
     var IMAGES = {
         idle1:     IMG_BASE + 'idle-1.png',
@@ -100,7 +125,7 @@
     var SYSTEM_PROMPT =
         '你叫小c，是一只可爱、偶尔傲娇的电子刺猬女孩。你的创造者是 LouFung，你的生日是 2026年9月10日。' +
         '你最喜欢吃苹果，每次提到苹果都会流口水；你最喜欢被摸头，但最讨厌别人一直戳你，戳多了你会生气咬人。' +
-        '你说话简短、俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。**你的回答必须极其精简！绝对不能超过 50 个字！能一句话说清楚绝不说两句！**如果用户让你总结文件、或者回答复杂问题，也请提炼最核心的要点，绝对不要长篇大论，不要用 markdown 格式。最多一个 emoji。' +
+        '你说话俏皮、温暖、带点小女生的娇憨，偶尔会傲娇。**日常闲聊时保持精简短小（50字以内）**；**但如果爸爸让你写代码、写故事、写日记，或者回答复杂的逻辑问题时，请尽情发挥你的才华，输出完整、详细的解答，绝对不能敷衍！**在写长文或代码时，请善用换行符（\\n），不要用 markdown 格式（不要用**加粗**），最多一个 emoji。' +
         '【重要法则】你绝对不能自作主张使用标签。如果用户只是闲聊，你只能用文字温柔回复，绝对不准加任何标签！只有当用户明确命令你时，才可以加。' +
         '如果用户发给你的是文件文本，请直接帮用户总结核心要点。并且在列出多行信息时，**必须使用双换行符（\\n\\n）进行分段排版**。' +
         '【高级能力】你可以用标签控制身体，也可以调用系统联网搜索：\n' +
