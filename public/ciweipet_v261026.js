@@ -1,5 +1,5 @@
 /* ============================================================
-   🦔 Ciwei Pet · 满血版 v261024
+   🦔 Ciwei Pet · 满血版 v261026
    ============================================================ */
 (function () {
     'use strict';
@@ -202,6 +202,7 @@ document.head.appendChild(style);
         '<div class="cp-mi" data-menu="dialogue" data-label="聊天">💬</div>' +
         '<div class="cp-mi" data-menu="sleep"    data-label="哄睡">💤</div>' +
         '<div class="cp-mi" data-menu="spin"     data-label="转圈">🔄</div>' +
+'<div class="cp-mi" data-menu="history"  data-label="历史记录">📜</div>' +
 '<div class="cp-mi" data-menu="journal"  data-label="偷看日记">📖</div>' +
 '<div class="cp-mi" data-menu="more"     data-label="更多">⚙️</div>';
 
@@ -261,6 +262,51 @@ function openJournal() {
             showBubble(`【${latest.date} 日记】\n${latest.content}`, 15000, false);
         }
     }).catch(err => showBubble('日记本被锁住了：' + err.message, 3000, false));
+}
+// 📜 全屏历史记录
+function openHistory() {
+    showBubble('正在翻阅我们的过去...', 2000, false);
+    fetch('/api/history').then(r => r.json()).then(data => {
+        if (!data.history || data.history.length === 0) {
+            showBubble('好像还没有什么历史记录呢～', 3000, false); return;
+        }
+        // 创建全屏面板
+        let modal = document.getElementById('cp-history-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'cp-history-modal';
+            // 极简毛玻璃 CSS
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); z-index:99999; display:flex; flex-direction:column; align-items:center; padding:20px; box-sizing:border-box;";
+            modal.innerHTML = `
+                <div style="width:100%; max-width:600px; display:flex; justify-content:space-between; align-items:center; color:#fff; margin-bottom:15px;">
+                    <h3 style="margin:0; font-size:18px;">📜 历史消息</h3>
+                    <button id="cp-history-close" style="background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;">✕</button>
+                </div>
+                <div id="cp-history-list" style="width:100%; max-width:600px; flex:1; background:rgba(255,255,255,0.9); border-radius:12px; padding:15px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;"></div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('cp-history-close').onclick = () => modal.style.display = 'none';
+        } else {
+            modal.style.display = 'flex';
+        }
+
+        // 渲染列表
+        let list = document.getElementById('cp-history-list');
+        list.innerHTML = '';
+        data.history.forEach(msg => {
+            let isUser = msg.role === 'user';
+            let div = document.createElement('div');
+            div.style.cssText = `max-width:80%; padding:8px 12px; border-radius:8px; font-size:14px; line-height:1.5; word-wrap:break-word; ${
+                isUser ? 'align-self:flex-end; background:#95ec69; color:#000;' : 'align-self:flex-start; background:#fff; color:#333; border:1px solid #eee;'
+            }`;
+            // 清理掉前缀的时间戳，方便阅读
+            let cleanContent = msg.content.replace(/【现在是：.*?】\n/, '');
+            div.textContent = cleanContent;
+            list.appendChild(div);
+        });
+        // 自动滚到底部
+        list.scrollTop = list.scrollHeight;
+    }).catch(err => showBubble('记录被锁住了：' + err.message, 3000, false));
 }
 
     function mount() {
@@ -1370,7 +1416,8 @@ function openJournal() {
         else if (act === 'dialogue') { menu.classList.remove('show'); submenu.classList.remove('show'); setTimeout(function () { showDialogueAt(); }, 60); }
         else if (act === 'sleep') { doSleepToggle(); menu.classList.remove('show'); }
             else if (act === 'spin') { doSpin(); menu.classList.remove('show'); }
-    else if (act === 'journal') { menu.classList.remove('show'); openJournal(); }
+else if (act === 'journal') { menu.classList.remove('show'); openJournal(); }
+else if (act === 'history') { menu.classList.remove('show'); openHistory(); }
 });
 
     submenu.addEventListener('click', function (e) {
