@@ -254,15 +254,42 @@ document.head.appendChild(style);
 function openJournal() {
     showBubble('正在翻找我的日记本...', 2000, false);
     fetch('/api/journal').then(r => r.json()).then(data => {
+        let modal = document.getElementById('cp-journal-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'cp-journal-modal';
+            modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); z-index:99999; display:flex; flex-direction:column; align-items:center; padding:20px; box-sizing:border-box;";
+            modal.innerHTML = `
+                <div style="width:100%; max-width:600px; display:flex; justify-content:space-between; align-items:center; color:#fff; margin-bottom:15px;">
+                    <h3 style="margin:0; font-size:18px;">📖 赛博日记</h3>
+                    <div>
+                        <button id="cp-journal-write-btn" style="background:#58a6ff; border:none; color:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:14px; margin-right:10px;">✍️ 补写日记</button>
+                        <button id="cp-journal-close" style="background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;">✕</button>
+                    </div>
+                </div>
+                <div id="cp-journal-content" style="width:100%; max-width:600px; flex:1; background:#fdf5e6; border-radius:12px; padding:20px; overflow-y:auto; font-family:Georgia, serif; font-size:16px; line-height:1.8; color:#333; white-space:pre-wrap;"></div>
+            `;
+            document.body.appendChild(modal);
+            
+            document.getElementById('cp-journal-close').onclick = () => modal.style.display = 'none';
+            document.getElementById('cp-journal-write-btn').onclick = () => {
+                document.getElementById('cp-journal-content').innerText = '小c 正在回忆今天并拼命写日记中...\n请稍等几秒钟，然后重新点开日记本查看。';
+                fetch('/api/journal/write', { method: 'POST' });
+            };
+        } else {
+            modal.style.display = 'flex';
+        }
+
+        let contentDiv = document.getElementById('cp-journal-content');
         if (!data.journals || data.journals.length === 0) {
-            showBubble('日记本还是空的，你让我写一篇嘛～', 3000, false);
+            contentDiv.innerText = '日记本还是空的，点击右上角的“✍️ 补写日记”让我写一篇嘛～';
         } else {
             let latest = data.journals[0];
-            // 用气泡显示日记内容，时长设长一点
-            showBubble(`【${latest.date} 日记】\n${latest.content}`, 15000, false);
+            contentDiv.innerText = `【${latest.date}】\n\n${latest.content}`;
         }
     }).catch(err => showBubble('日记本被锁住了：' + err.message, 3000, false));
 }
+
 // 📜 全屏历史记录
 function openHistory() {
     showBubble('正在翻阅我们的过去...', 2000, false);
@@ -270,27 +297,42 @@ function openHistory() {
         if (!data.history || data.history.length === 0) {
             showBubble('好像还没有什么历史记录呢～', 3000, false); return;
         }
-        // 创建全屏面板
         let modal = document.getElementById('cp-history-modal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'cp-history-modal';
-            // 极简毛玻璃 CSS
             modal.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); z-index:99999; display:flex; flex-direction:column; align-items:center; padding:20px; box-sizing:border-box;";
             modal.innerHTML = `
                 <div style="width:100%; max-width:600px; display:flex; justify-content:space-between; align-items:center; color:#fff; margin-bottom:15px;">
                     <h3 style="margin:0; font-size:18px;">📜 历史消息</h3>
-                    <button id="cp-history-close" style="background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;">✕</button>
+                    <div>
+                        <button id="cp-history-export" style="background:#95ec69; border:none; color:#000; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:14px; margin-right:10px;">📥 导出TXT</button>
+                        <button id="cp-history-close" style="background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;">✕</button>
+                    </div>
                 </div>
                 <div id="cp-history-list" style="width:100%; max-width:600px; flex:1; background:rgba(255,255,255,0.9); border-radius:12px; padding:15px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;"></div>
             `;
             document.body.appendChild(modal);
             document.getElementById('cp-history-close').onclick = () => modal.style.display = 'none';
+            
+            // ⭐ 导出 TXT 核心逻辑
+            document.getElementById('cp-history-export').onclick = () => {
+                let txt = '';
+                data.history.forEach(msg => {
+                    let role = msg.role === 'user' ? '👤 爸爸' : '🦔 小c';
+                    let content = msg.content.replace(/【现在是：.*?】\n/, '');
+                    txt += `[${msg.id}] ${role}:\n${content}\n\n-------------------\n\n`;
+                });
+                let blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+                let a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'ciwei_history_' + new Date().toISOString().slice(0, 10) + '.txt';
+                a.click();
+            };
         } else {
             modal.style.display = 'flex';
         }
 
-        // 渲染列表
         let list = document.getElementById('cp-history-list');
         list.innerHTML = '';
         data.history.forEach(msg => {
@@ -299,12 +341,10 @@ function openHistory() {
             div.style.cssText = `max-width:80%; padding:8px 12px; border-radius:8px; font-size:14px; line-height:1.5; word-wrap:break-word; ${
                 isUser ? 'align-self:flex-end; background:#95ec69; color:#000;' : 'align-self:flex-start; background:#fff; color:#333; border:1px solid #eee;'
             }`;
-            // 清理掉前缀的时间戳，方便阅读
             let cleanContent = msg.content.replace(/【现在是：.*?】\n/, '');
             div.textContent = cleanContent;
             list.appendChild(div);
         });
-        // 自动滚到底部
         list.scrollTop = list.scrollHeight;
     }).catch(err => showBubble('记录被锁住了：' + err.message, 3000, false));
 }
