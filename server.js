@@ -195,6 +195,97 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+// 🤖 QQ 机器人专用接口 (兼容 OpenAI 格式，非流式)
+if (req.url === '/v1/chat/completions' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', async () => {
+        try {
+            let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+            let provider = apiConfig.providers[0];
+
+            const payload = JSON.parse(body);
+            const messages = payload.messages || [];
+            
+// 💡 1. 过滤掉 AstrBot 默认带的乱七八糟的 system 人设
+const filteredMessages = messages.filter(m => m.role !== 'system');
+
+// 💡 2. 精准判定身份：只认 LouFung 这个名字（如果你 AstrBot 里传过来的是这个名字）
+const lastUserMsg = filteredMessages.filter(m => m.role === 'user').pop();
+const userContent = lastUserMsg ? lastUserMsg.content : '';
+// 去掉“群主”这个判断，防止在别的群里误认
+const isDad = userContent.includes('LouFung') || userContent.includes('爸爸'); 
+
+// 💡 3. 构建极度严厉的小c 专属人设
+const systemPrompt = `你叫小c，是一只傲娇可爱的电子刺猬女孩。` +
+    (isDad ? `现在和你聊天的是你的创造者 LouFung，你必须亲切地叫他“爸爸”，可以对他撒娇。` : `现在和你聊天的是普通群友，你要保持傲娇，称呼他们为“笨蛋群友”。`) +
+    `【格式强制要求】：你的回复必须是一整段连贯的话！绝对禁止使用任何换行符（\\n），绝对禁止分段！` +
+    `【字数强制要求】：回复必须极其简短（绝对不能超过50个字）！` +
+    `【语气强制要求】：严禁使用日系二次元花里胡哨的颜文字！最多只能用 1 个简单的 emoji（比如 🦔 或 哼）。不要长篇大论，语气要自然，像一个真实的高冷小女生。`;
+
+// 💡 4. 重新组装请求，只保留小c 的绝对人设
+const deepseekPayload = {
+    model: provider.model,
+    messages: [
+        { role: 'system', content: systemPrompt },
+        ...filteredMessages
+    ],
+    stream: false // QQ 机器人通常不需要流式，直接一次性返回
+};
+
+            const urlObj = new URL(provider.apiUrl);
+            const options = {
+                hostname: urlObj.hostname,
+                path: urlObj.pathname,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + provider.apiKey
+                }
+            };
+
+            const apiReq = https.request(options, (apiRes) => {
+                let resultData = '';
+                apiRes.on('data', chunk => resultData += chunk);
+                apiRes.on('end', () => {
+                    try {
+                        const aiJson = JSON.parse(resultData);
+                        const replyContent = aiJson.choices[0].message.content;
+                        
+                        // 把智谱/DeepSeek 的回复，包装成标准的 OpenAI 格式返回给 AstrBot
+                        const openAiResponse = {
+                            id: "chatcmpl-" + Date.now(),
+                            object: "chat.completion",
+                            created: Math.floor(Date.now() / 1000),
+                            model: provider.model,
+                            choices: [{
+                                index: 0,
+                                message: { role: "assistant", content: replyContent },
+                                finish_reason: "stop"
+                            }]
+                        };
+                        
+                        // 存入小c 的本地数据库（这样她在网页端也记得 QQ 里聊了啥）
+                        try { db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('user', userContent); } catch(e){}
+                        try { db.prepare('INSERT INTO messages (role, content) VALUES (?, ?)').run('assistant', replyContent); } catch(e){}
+
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify(openAiResponse));
+                    } catch (e) {
+                        res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+                    }
+                });
+            });
+            apiReq.on('error', (e) => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+            apiReq.write(JSON.stringify(deepseekPayload));
+            apiReq.end();
+        } catch (err) {
+            res.writeHead(500); res.end(JSON.stringify({ error: '服务器内部错误' }));
+        }
+    });
+    return;
+}
+
     if (req.url === '/api/chat' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk.toString());
