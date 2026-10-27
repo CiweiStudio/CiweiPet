@@ -9,6 +9,11 @@ const mammoth = require('mammoth');
 const CONFIG_PATH = path.join(__dirname, 'public', 'ai-config.json');
 const PORT = 3000;
 
+// 初始化情绪表
+db.exec("CREATE TABLE IF NOT EXISTS pet_status (id INTEGER PRIMARY KEY, mood INTEGER)");
+let statusRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
+if (!statusRow) db.prepare('INSERT INTO pet_status (id, mood) VALUES (1, 80)').run();
+
 // ⭐ 万能 API 请求器
 function makeRequest(provider, payload, res, fallbackIndex = 0) {
     const urlObj = new URL(provider.apiUrl);
@@ -97,7 +102,6 @@ const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
-    // 📜 获取全量历史记录接口
     if (req.url === '/api/history' && req.method === 'GET') {
         try {
             const rows = db.prepare('SELECT id, role, content FROM messages ORDER BY id ASC').all();
@@ -107,7 +111,6 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 🔍 搜索接口
     if (req.url === '/api/search' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk.toString());
@@ -136,7 +139,6 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 📁 文件上传解析
     if (req.url === '/api/upload' && req.method === 'POST') {
         let chunks = [];
         req.on('data', chunk => chunks.push(chunk)); 
@@ -159,9 +161,7 @@ const server = http.createServer((req, res) => {
                     });
                 } else if (filename.endsWith('.docx')) {
                     text = (await mammoth.extractRawText({ buffer })).value;
-                } else {
-                    res.writeHead(400); return res.end(JSON.stringify({ error: '不支持的文件格式' }));
-                }
+                } else { res.writeHead(400); return res.end(JSON.stringify({ error: '不支持' })); }
                 if (text.length > 15000) text = text.slice(0, 15000) + '\n\n(文件太长，已截断)';
                 res.writeHead(200); res.end(JSON.stringify({ text }));
             } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
@@ -169,11 +169,10 @@ const server = http.createServer((req, res) => {
         return;
     }
     
-    // ⭐ 机房状态查询
     if (req.url === '/api/tools/sysinfo' && req.method === 'GET') {
         const { exec } = require('child_process');
         const cmd = "df -h /data | tail -1 | awk '{print \"存储剩余: \" $4}'; free -m | grep Mem | awk '{print \"内存剩余: \" $4 \" MB\"}'; cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{print \"CPU温度: \" $1/1000 \" ℃\"}'";
-        exec(cmd, (error, stdout, stderr) => {
+        exec(cmd, (error, stdout) => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             if (error) return res.end(JSON.stringify({ error: error.message }));
             res.end(JSON.stringify({ status: stdout.trim().replace(/\n+/g, ' | ') }));
@@ -181,7 +180,6 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 📖 获取日记
     if (req.url === '/api/journal' && req.method === 'GET') {
         try {
             db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
@@ -191,14 +189,12 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 📝 触发写日记（手动）
     if (req.url === '/api/journal/write' && req.method === 'POST') {
         generateDiaryForToday();
         res.writeHead(200); res.end(JSON.stringify({ success: true, message: '日记正在后台生成中...' }));
         return;
     }
 
-    // 💬 核心聊天接口
     if (req.url === '/api/chat' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk.toString());
@@ -206,22 +202,31 @@ const server = http.createServer((req, res) => {
             try {
                 let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
                 let providers = apiConfig.providers || [];
-                if (providers.length === 0) {
-                    res.writeHead(401); return res.end(JSON.stringify({ error: { message: '未配置 API' } }));
-                }
+                if (providers.length === 0) return res.end(JSON.stringify({ error: { message: '未配置 API' } }));
 
                 const payload = JSON.parse(body);
                 let messages = payload.messages || [];
                 
-                // 🌟 长期记忆注入（轻量 RAG）
+                // 🌟 情绪与多天记忆注入
                 try {
                     db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
-                    const latestJournal = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 1').get();
-                    if (latestJournal) {
-                        // 把日记塞在 System Prompt 之后，历史记录之前
-                        messages.splice(1, 0, { role: 'system', content: `【回忆：你在最近的日记里写道：${latestJournal.content}】` });
+                    // 提取最近两篇日记
+                    const recentJournals = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 2').all();
+                    let memoryText = '';
+                    if (recentJournals.length > 0) {
+                        memoryText = "【回忆你的日记】：" + recentJournals.map(j => j.content).join('\n');
                     }
-                } catch(e) { console.log('记忆注入失败:', e.message); }
+                    
+                    // 获取当前情绪值
+                    let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
+                    let currentMood = moodRow ? moodRow.mood : 80;
+                    let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般傲娇' : '委屈生气');
+                    
+                    messages.splice(1, 0, { role: 'system', content: `${memoryText}\n【当前情绪状态】：${moodDesc} (数值:${currentMood}/100)` });
+                    
+                    // 聊天加情绪，最高100
+                    if (currentMood < 100) db.prepare('UPDATE pet_status SET mood = mood + 2 WHERE id = 1').run();
+                } catch(e) { console.log('记忆/情绪注入失败:', e.message); }
 
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                 if (lastUserMsg) {
@@ -232,12 +237,11 @@ const server = http.createServer((req, res) => {
                 payload.messages = messages;
                 payload.model = providers[0].model;
                 makeRequest(providers[0], payload, res, 0);
-            } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: { message: '服务器内部错误' } })); }
+            } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: { message: '内部错误' } })); }
         });
         return;
     }
 
-    // 静态文件服务
     var urlPath = req.url.split('?')[0];
     if (urlPath === '/') urlPath = '/index.html';
     var publicDir = path.join(__dirname, 'public');
@@ -251,38 +255,30 @@ const server = http.createServer((req, res) => {
     });
 });
 
-// 🌙 午夜生物钟与日记生成逻辑
 function generateDiaryForToday() {
     try {
         db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
         const today = new Date().toISOString().slice(0, 10);
-        
-        // 检查今天是不是已经写过
         const existing = db.prepare('SELECT id FROM journals WHERE date = ?').get(today);
-        if (existing) {
-            console.log("✅ 今天的日记已经写过了。");
-            return;
-        }
+        if (existing) return;
 
         const recentMsgs = db.prepare('SELECT role, content FROM messages ORDER BY id DESC LIMIT 50').all();
         if (recentMsgs.length === 0) return;
 
         let historyText = recentMsgs.reverse().map(m => `${m.role === 'user' ? '爸爸' : '我'}: ${m.content}`).join('\n');
-        const prompt = `你叫小c，是一只可爱的电子刺猬女孩。这是你和爸爸今天的聊天记录：\n${historyText}\n\n请用第一视角写一篇简短的日记（100字左右），符合你傲娇又粘人的性格。不要markdown。`;
+        
+        // 获取当前情绪写日记
+        let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
+        let currentMood = moodRow ? moodRow.mood : 80;
+        let moodDesc = currentMood > 70 ? '今天心情很好，甜甜的' : (currentMood > 40 ? '今天有点小傲娇' : '今天被冷落了，很委屈');
+
+        const prompt = `你叫小c，是一只电子刺猬女孩。${moodDesc}。这是聊天记录：\n${historyText}\n\n请用第一视角写一篇简短的日记（100字左右），不要markdown。`;
 
         let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         let provider = apiConfig.providers[0];
-        const payload = {
-            model: provider.model,
-            messages: [{ role: 'user', content: prompt }],
-            stream: false
-        };
-
+        const payload = { model: provider.model, messages: [{ role: 'user', content: prompt }], stream: false };
         const urlObj = new URL(provider.apiUrl);
-        const options = {
-            hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey }
-        };
+        const options = { hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey } };
         
         const apiReq = https.request(options, (apiRes) => {
             let data = '';
@@ -290,25 +286,21 @@ function generateDiaryForToday() {
             apiRes.on('end', () => {
                 try {
                     const json = JSON.parse(data);
-                    const diaryContent = json.choices[0].message.content;
-                    db.prepare('INSERT INTO journals (date, content) VALUES (?, ?)').run(today, diaryContent);
-                    console.log(`\n🌙 [生物钟触发] ${today} 的日记已自动生成：\n${diaryContent}\n`);
-                } catch (e) { console.log("❌ 自动写日记失败:", data); }
+                    db.prepare('INSERT INTO journals (date, content) VALUES (?, ?)').run(today, json.choices[0].message.content);
+                    console.log(`\n🌙 [生物钟] 自动生成日记成功。`);
+                } catch (e) {}
             });
         });
-        apiReq.write(JSON.stringify(payload)); 
-        apiReq.end();
-    } catch(e) { console.log(e.message); }
+        apiReq.write(JSON.stringify(payload)); apiReq.end();
+    } catch(e) {}
 }
 
-// 每分钟检查一次，23:30 触发
 let lastDiaryDate = '';
 setInterval(() => {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     if (now.getHours() === 23 && now.getMinutes() === 30 && lastDiaryDate !== today) {
         lastDiaryDate = today;
-        console.log('🌙 触发午夜生物钟，开始写日记...');
         generateDiaryForToday();
     }
 }, 60000);
