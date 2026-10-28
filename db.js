@@ -23,3 +23,15 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 )
 `);
+
+// 动态检查并添加 source 字段
+try {
+    const columns = db.prepare("PRAGMA table_info(messages)").all();
+    const hasSource = columns.some(c => c.name === 'source');
+    if (!hasSource) {
+        db.exec("ALTER TABLE messages ADD COLUMN source TEXT DEFAULT 'web'");
+        console.log("✅ 数据库升级：已成功添加 source 字段用于频道隔离");
+    }
+} catch (e) {
+    console.log("⚠️ 数据库升级检查跳过:", e.message);
+}
