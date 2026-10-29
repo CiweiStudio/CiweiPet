@@ -20,18 +20,12 @@ function makeRequest(provider, payload, res, fallbackIndex = 0) {
     const reqData = JSON.stringify(payload);
     
     const options = {
-        hostname: urlObj.hostname,
-        path: urlObj.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + provider.apiKey
-        }
+        hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey }
     };
 
     const apiReq = https.request(options, (apiRes) => {
         if (apiRes.statusCode >= 400) {
-            console.log(`[警告] ${provider.name} 返回 ${apiRes.statusCode}，尝试降级...`);
             apiRes.resume();
             return fallback(provider, payload, res, fallbackIndex);
         }
@@ -73,11 +67,7 @@ function makeRequest(provider, payload, res, fallbackIndex = 0) {
         });
     });
 
-    apiReq.on('error', (e) => {
-        console.log(`[错误] ${provider.name} 网络异常: ${e.message}，尝试降级...`);
-        fallback(provider, payload, res, fallbackIndex);
-    });
-    
+    apiReq.on('error', (e) => { fallback(provider, payload, res, fallbackIndex); });
     apiReq.write(reqData);
     apiReq.end();
 }
@@ -87,13 +77,30 @@ function fallback(provider, payload, res, currentIndex) {
     let providers = apiConfig.providers || [];
     if (currentIndex + 1 < providers.length) {
         let nextProvider = providers[currentIndex + 1];
-        console.log(`[路由] 切换到备用接口: ${nextProvider.name}`);
         payload.model = nextProvider.model;
         makeRequest(nextProvider, payload, res, currentIndex + 1);
     } else {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { message: '所有 API 接口均已失效' } }));
     }
+}
+
+// 🧠 核心：跨天深度 RAG 检索器
+function getDeepRAGContext(query) {
+    try {
+        // 提取关键词（简单粗暴取最后10个字符）
+        let keyword = query.slice(-10).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ''); 
+        if (!keyword) return '';
+        
+        // 去数据库里捞最近 1000 条里包含该关键词的旧记忆（排除当前半小时内的）
+        const oldMsgs = db.prepare("SELECT role, content FROM messages WHERE content LIKE ? AND created_at < datetime('now', '-30 minutes') ORDER BY id DESC LIMIT 3").all(`%${keyword}%`);
+        
+        if (oldMsgs.length > 0) {
+            let context = oldMsgs.reverse().map(m => `${m.role === 'user' ? '爸爸以前说' : '我以前回'}: ${m.content}`).join('\n');
+            return `【深层记忆唤醒】：你突然想起以前聊过相关的话题：\n${context}\n\n`;
+        }
+    } catch(e) {}
+    return '';
 }
 
 const server = http.createServer((req, res) => {
@@ -111,7 +118,6 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 🔍 搜索接口（彻底换回 DeepSeek 官方 Search）
     if (req.url === '/api/search' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk.toString());
@@ -196,7 +202,6 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 🤖 QQ 机器人专用接口 (支持多模态与透传)
     if (req.url === '/v1/chat/completions' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk.toString());
@@ -204,47 +209,45 @@ const server = http.createServer((req, res) => {
             try {
                 let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
                 let provider = apiConfig.providers[0];
-
                 const payload = JSON.parse(body);
                 const messages = payload.messages || [];
                 
-                // 🧠 注入长期记忆与情绪
                 try {
-                    db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
+                    // 记忆与情绪注入
                     const recentJournals = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 2').all();
-                    let memoryText = '';
-                    if (recentJournals.length > 0) {
-                        memoryText = "【回忆你的日记】：" + recentJournals.map(j => j.content).join('\n');
-                    }
-                    
+                    let memoryText = recentJournals.length > 0 ? "【回忆日记（日记里的主人就是爸爸）】：" + recentJournals.map(j => j.content).join('\n') : '';
                     let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
                     let currentMood = moodRow ? moodRow.mood : 80;
-                    let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般般' : '委屈生气');
+                    let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般般' : '极度委屈且高冷');
                     
+                    // 提取最后一句用于 RAG
+                    const lastMsg = messages.filter(m => m.role === 'user').pop();
+                    let ragContext = '';
+                    if (lastMsg && typeof lastMsg.content === 'string') {
+                        ragContext = getDeepRAGContext(lastMsg.content);
+                    }
+
                     if (messages.length > 0 && messages[0].role === 'system') {
-                        messages[0].content += `\n${memoryText}\n【当前情绪状态】：${moodDesc} (数值:${currentMood}/100)`;
+                        messages[0].content += `\n${memoryText}\n${ragContext}【当前情绪状态】：${moodDesc}。如果情绪极度委屈，请保持冷漠，群聊回复不超过5个字。`;
                     }
-                } catch(e) { console.log('QQ端记忆/情绪注入失败:', e.message); }
+                } catch(e) {}
 
+                const timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-                const userContent = lastUserMsg ? (typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '[图片]') : '';
-
-                const deepseekPayload = {
-                    model: provider.model,
-                    messages: messages,
-                    stream: false 
-                };
-
-                const urlObj = new URL(provider.apiUrl);
-                const options = {
-                    hostname: urlObj.hostname,
-                    path: urlObj.pathname,
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + provider.apiKey
+                let userContent = '';
+                if (lastUserMsg) {
+                    if (typeof lastUserMsg.content === 'string') {
+                        userContent = lastUserMsg.content;
+                        lastUserMsg.content = `【现在是：${timeStr}】\n` + userContent;
+                    } else if (Array.isArray(lastUserMsg.content)) {
+                        userContent = '[图片/多媒体]';
+                        lastUserMsg.content.unshift({ type: 'text', text: `【现在是：${timeStr}】\n` });
                     }
-                };
+                }
+
+                const deepseekPayload = { model: provider.model, messages: messages, stream: false };
+                const urlObj = new URL(provider.apiUrl);
+                const options = { hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey } };
 
                 const apiReq = https.request(options, (apiRes) => {
                     let resultData = '';
@@ -253,17 +256,9 @@ const server = http.createServer((req, res) => {
                         try {
                             const aiJson = JSON.parse(resultData);
                             const replyContent = aiJson.choices[0].message.content;
-                            
                             const openAiResponse = {
-                                id: "chatcmpl-" + Date.now(),
-                                object: "chat.completion",
-                                created: Math.floor(Date.now() / 1000),
-                                model: provider.model,
-                                choices: [{
-                                    index: 0,
-                                    message: { role: "assistant", content: replyContent },
-                                    finish_reason: "stop"
-                                }]
+                                id: "chatcmpl-" + Date.now(), object: "chat.completion", created: Math.floor(Date.now() / 1000), model: provider.model,
+                                choices: [{ index: 0, message: { role: "assistant", content: replyContent }, finish_reason: "stop" }]
                             };
                             
                             const qqSource = payload.channel || 'qq_private';
@@ -272,17 +267,13 @@ const server = http.createServer((req, res) => {
 
                             res.writeHead(200, { 'Content-Type': 'application/json' });
                             res.end(JSON.stringify(openAiResponse));
-                        } catch (e) {
-                            res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
-                        }
+                        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
                     });
                 });
                 apiReq.on('error', (e) => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
                 apiReq.write(JSON.stringify(deepseekPayload));
                 apiReq.end();
-            } catch (err) {
-                res.writeHead(500); res.end(JSON.stringify({ error: '服务器内部错误' }));
-            }
+            } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: '服务器内部错误' })); }
         });
         return;
     }
@@ -294,28 +285,25 @@ const server = http.createServer((req, res) => {
             try {
                 let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
                 let providers = apiConfig.providers || [];
-                if (providers.length === 0) return res.end(JSON.stringify({ error: { message: '未配置 API' } }));
-
                 const payload = JSON.parse(body);
                 let messages = payload.messages || [];
                 
-                // 🌟 情绪与多天记忆注入
                 try {
-                    db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
                     const recentJournals = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 2').all();
-                    let memoryText = '';
-                    if (recentJournals.length > 0) {
-                        memoryText = "【回忆你的日记】：" + recentJournals.map(j => j.content).join('\n');
-                    }
-                    
+                    let memoryText = recentJournals.length > 0 ? "【回忆你的日记】：" + recentJournals.map(j => j.content).join('\n') : '';
                     let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
                     let currentMood = moodRow ? moodRow.mood : 80;
                     let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般傲娇' : '委屈生气');
                     
-                    messages.splice(1, 0, { role: 'system', content: `${memoryText}\n【当前情绪状态】：${moodDesc} (数值:${currentMood}/100)` });
-                    
+                    const lastMsg = messages.filter(m => m.role === 'user').pop();
+                    let ragContext = '';
+                    if (lastMsg && typeof lastMsg.content === 'string') {
+                        ragContext = getDeepRAGContext(lastMsg.content);
+                    }
+
+                    messages.splice(1, 0, { role: 'system', content: `${memoryText}\n${ragContext}\n【当前情绪状态】：${moodDesc} (数值:${currentMood}/100)` });
                     if (currentMood < 100) db.prepare('UPDATE pet_status SET mood = mood + 2 WHERE id = 1').run();
-                } catch(e) { console.log('记忆/情绪注入失败:', e.message); }
+                } catch(e) {}
 
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                 if (lastUserMsg) {
@@ -354,7 +342,10 @@ function generateDiaryForToday() {
         const recentMsgs = db.prepare("SELECT role, content FROM messages WHERE source = 'web' ORDER BY id DESC LIMIT 50").all();
         if (recentMsgs.length === 0) return;
 
-        let historyText = recentMsgs.reverse().map(m => `${m.role === 'user' ? '爸爸' : '我'}: ${m.content}`).join('\n');
+        let historyText = recentMsgs.reverse().map(m => {
+            let speaker = m.role === 'user' ? '爸爸' : '我';
+            return `${speaker}说: ${m.content}`;
+        }).join('\n');
         
         let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
         let currentMood = moodRow ? moodRow.mood : 80;
@@ -374,8 +365,20 @@ function generateDiaryForToday() {
             apiRes.on('end', () => {
                 try {
                     const json = JSON.parse(data);
-                    db.prepare('INSERT INTO journals (date, content) VALUES (?, ?)').run(today, json.choices[0].message.content);
+                    const diaryContent = json.choices[0].message.content;
+                    db.prepare('INSERT INTO journals (date, content) VALUES (?, ?)').run(today, diaryContent);
                     console.log(`\n🌙 [生物钟] 自动生成日记成功。`);
+                    
+                    // 💡 QQ空间/私聊广播（通过 NapCat API 发送给大号）
+                    const qqMsg = `【${today} 赛博日记】\n\n${diaryContent}`;
+                    const qqReq = https.request({
+                        hostname: '127.0.0.1', port: 6200, path: '/send_private_msg', method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    qqReq.write(JSON.stringify({ user_id: 2586279833, message: qqMsg }));
+                    qqReq.end();
+                    console.log(`📬 日记已推送到 QQ 私聊！`);
+
                 } catch (e) {}
             });
         });
