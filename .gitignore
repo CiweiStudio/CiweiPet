@@ -7,3 +7,5 @@ data/
 ai-config.json
 db/ciwei.db
 .turnstile-secret
+*.bak
+node_modules/
