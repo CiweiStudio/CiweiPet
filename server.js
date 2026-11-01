@@ -14,6 +14,40 @@ db.exec("CREATE TABLE IF NOT EXISTS pet_status (id INTEGER PRIMARY KEY, mood INT
 let statusRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
 if (!statusRow) db.prepare('INSERT INTO pet_status (id, mood) VALUES (1, 80)').run();
 
+// ⭐ 新增：请求本地 5-2B 大脑 (8080端口)
+function makeLocalRequest(payload, res) {
+    console.log('🔄 [降级路由] 云端 API 失败，切换至红米本地大脑 (5-2B)...');
+    const localPayload = JSON.parse(JSON.stringify(payload));
+    
+    // 本地 5-2B 是纯文本模型，多模态输入强行转纯文本防报错
+    if (localPayload.messages) {
+        localPayload.messages = localPayload.messages.map(m => {
+            if (Array.isArray(m.content)) {
+                let textContent = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+                return { ...m, content: textContent || '[图片]' };
+            }
+            return m;
+        });
+    }
+    localPayload.stream = false;
+
+    const apiReq = http.request({
+        hostname: '127.0.0.1', port: 8080, path: '/v1/chat/completions', method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    }, (apiRes) => {
+        res.writeHead(apiRes.statusCode, apiRes.headers);
+        apiRes.pipe(res);
+    });
+    
+    apiReq.on('error', (e) => {
+        console.error('❌ 本地兜底模型请求也失败了:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: '云端和本地大脑均已失效' } }));
+    });
+    apiReq.write(JSON.stringify(localPayload));
+    apiReq.end();
+}
+
 // ⭐ 万能 API 请求器
 function makeRequest(provider, payload, res, fallbackIndex = 0) {
     const urlObj = new URL(provider.apiUrl);
@@ -80,21 +114,17 @@ function fallback(provider, payload, res, currentIndex) {
         payload.model = nextProvider.model;
         makeRequest(nextProvider, payload, res, currentIndex + 1);
     } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: { message: '所有 API 接口均已失效' } }));
+        // 🔥 所有云端接口都挂了，走本地！
+        makeLocalRequest(payload, res);
     }
 }
 
 // 🧠 核心：跨天深度 RAG 检索器
 function getDeepRAGContext(query) {
     try {
-        // 提取关键词（简单粗暴取最后10个字符）
         let keyword = query.slice(-10).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ''); 
         if (!keyword) return '';
-        
-        // 去数据库里捞最近 1000 条里包含该关键词的旧记忆（排除当前半小时内的）
         const oldMsgs = db.prepare("SELECT role, content FROM messages WHERE content LIKE ? AND created_at < datetime('now', '-30 minutes') ORDER BY id DESC LIMIT 3").all(`%${keyword}%`);
-        
         if (oldMsgs.length > 0) {
             let context = oldMsgs.reverse().map(m => `${m.role === 'user' ? '爸爸以前说' : '我以前回'}: ${m.content}`).join('\n');
             return `【深层记忆唤醒】：你突然想起以前聊过相关的话题：\n${context}\n\n`;
@@ -126,10 +156,8 @@ const server = http.createServer((req, res) => {
                 const { query } = JSON.parse(body);
                 let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
                 let provider = apiConfig.providers[0];
-                
                 const postData = JSON.stringify({ query, count: 5, need_content: false });
                 const urlObj = new URL('https://api.deepseek.com/v1/tools/search');
-                
                 const options = {
                     hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey }
@@ -213,14 +241,12 @@ const server = http.createServer((req, res) => {
                 const messages = payload.messages || [];
                 
                 try {
-                    // 记忆与情绪注入
                     const recentJournals = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 2').all();
                     let memoryText = recentJournals.length > 0 ? "【回忆日记（日记里的主人就是爸爸）】：" + recentJournals.map(j => j.content).join('\n') : '';
                     let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
                     let currentMood = moodRow ? moodRow.mood : 80;
                     let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般般' : '极度委屈且高冷');
                     
-                    // 提取最后一句用于 RAG
                     const lastMsg = messages.filter(m => m.role === 'user').pop();
                     let ragContext = '';
                     if (lastMsg && typeof lastMsg.content === 'string') {
@@ -270,7 +296,11 @@ const server = http.createServer((req, res) => {
                         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
                     });
                 });
-                apiReq.on('error', (e) => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+                apiReq.on('error', (e) => { 
+                    // 🔥 云端在 QQ 对话时挂了，也走本地降级
+                    console.log('云端接口错误，触发本地降级...');
+                    makeLocalRequest(deepseekPayload, res);
+                });
                 apiReq.write(JSON.stringify(deepseekPayload));
                 apiReq.end();
             } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: '服务器内部错误' })); }
@@ -335,7 +365,10 @@ const server = http.createServer((req, res) => {
 function generateDiaryForToday() {
     try {
         db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
-        const today = new Date().toISOString().slice(0, 10);
+        
+        const now = new Date();
+        const today = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        
         const existing = db.prepare('SELECT id FROM journals WHERE date = ?').get(today);
         if (existing) return;
 
@@ -369,19 +402,34 @@ function generateDiaryForToday() {
                     db.prepare('INSERT INTO journals (date, content) VALUES (?, ?)').run(today, diaryContent);
                     console.log(`\n🌙 [生物钟] 自动生成日记成功。`);
                     
-                    // 💡 QQ空间/私聊广播（通过 NapCat API 发送给大号）
                     const qqMsg = `【${today} 赛博日记】\n\n${diaryContent}`;
-                    const qqReq = https.request({
-                        hostname: '127.0.0.1', port: 6200, path: '/send_private_msg', method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    qqReq.write(JSON.stringify({ user_id: 2586279833, message: qqMsg }));
-                    qqReq.end();
-                    console.log(`📬 日记已推送到 QQ 私聊！`);
+                    const wsDiary = new WebSocket('ws://127.0.0.1:6200');
+                    
+                    wsDiary.onopen = () => {
+                        wsDiary.send(JSON.stringify({
+                            action: 'send_private_msg',
+                            params: { user_id: 2586279833, message: qqMsg },
+                            echo: 'send_diary'
+                        }));
+                    };
+                    
+                    let diarySentSuccess = false;
+                    wsDiary.onmessage = (e) => {
+                        const d = JSON.parse(e.data);
+                        if (d.echo === 'send_diary') {
+                            console.log(`📬 日记已自动推送到 QQ！(状态: ${d.status})`);
+                            diarySentSuccess = true;
+                            wsDiary.close();
+                        }
+                    };
+                    wsDiary.onerror = (e) => {
+                        if (!diarySentSuccess) console.error('日记推送到QQ失败:', e.message || e);
+                    };
 
                 } catch (e) {}
             });
         });
+        apiReq.on('error', (e) => console.error('生成日记API失败:', e.message));
         apiReq.write(JSON.stringify(payload)); apiReq.end();
     } catch(e) {}
 }
@@ -389,7 +437,7 @@ function generateDiaryForToday() {
 let lastDiaryDate = '';
 setInterval(() => {
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
     if (now.getHours() === 23 && now.getMinutes() === 30 && lastDiaryDate !== today) {
         lastDiaryDate = today;
         generateDiaryForToday();

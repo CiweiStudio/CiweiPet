@@ -1,4 +1,4 @@
-// 🦔 小c 纯原生 QQ 网关 (B站完全体 + 搜索精准版)
+// 🦔 小c 纯原生 QQ 网关 (双脑缝合版：本地视觉 + 云端大脑)
 const fs = require('fs');
 const path = require('path');
 const wsUrl = 'ws://127.0.0.1:6200'; 
@@ -9,19 +9,16 @@ let reconnectTimer = null;
 const chatHistory = new Map(); 
 const pendingRequests = new Map(); 
 
-// 🎬 B站视频完全体解析器 (带封面图 + 弹幕)
+// 🎬 B站视频完全体解析器
 async function parseBilibiliLink(text) {
     try {
         const urlMatch = text.match(/https?:\/\/[^\s]+/);
         if (!urlMatch) return null;
         let url = urlMatch[0];
-
-        // 短链接重定向
         if (url.includes('b23.tv')) {
             const redirectRes = await fetch(url, { redirect: 'follow' });
             url = redirectRes.url;
         }
-
         const bvMatch = url.match(/BV[a-zA-Z0-9]+/);
         if (!bvMatch) return null;
         const bvid = bvMatch[0];
@@ -32,8 +29,6 @@ async function parseBilibiliLink(text) {
         if (json.code === 0) {
             const data = json.data;
             let info = `【B站视频情报】：\n标题：${data.title}\nUP主：${data.owner.name}\n简介：${data.desc.substring(0, 150)}...`;
-
-            // 🔥 抓取热门弹幕
             try {
                 const cid = data.cid;
                 const danmakuRes = await fetch(`https://api.bilibili.com/x/v1/dm/list.so?oid=${cid}`);
@@ -44,19 +39,13 @@ async function parseBilibiliLink(text) {
                     info += `\n【热门弹幕】：${topDanmaku}`;
                 }
             } catch(e) { console.log('弹幕获取失败:', e.message); }
-
-            return {
-                infoText: info,
-                coverUrl: data.pic
-            };
+            return { infoText: info, coverUrl: data.pic };
         }
-    } catch(e) { 
-        console.log('B站解析失败:', e.message); 
-    }
+    } catch(e) { console.log('B站解析失败:', e.message); }
     return null;
 }
 
-// 🎵 点歌功能 (图文降级版)
+// 🎵 点歌功能
 async function searchNeteaseMusic(keyword) {
     try {
         let searchKeyword = keyword.replace(/的/g, ' ').trim();
@@ -70,6 +59,43 @@ async function searchNeteaseMusic(keyword) {
     } catch(e) { console.log('网易云搜索失败:', e.message); }
     return null;
 }
+
+// 👁️ 新增：调用本地 MiniCPM-V 4.6 解析图片
+async function parseImageLocally(imageUrl) {
+    try {
+        console.log('👀 正在呼叫本地视觉模型分析图片...');
+        // 下载图片并转 Base64
+        const imgRes = await fetch(imageUrl);
+        if (!imgRes.ok) throw new Error('下载图片失败');
+        const arrayBuffer = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        
+        // 发给本地 8081 端口
+        const vRes = await fetch('http://127.0.0.1:8081/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: "MiniCPM-V",
+                messages: [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: '请用一段话详细描述这张图片里的内容，包括画面主体、颜色、文字和情绪。' },
+                        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } }
+                    ]
+                }],
+                stream: false
+            })
+        });
+        
+        if (!vRes.ok) throw new Error('本地视觉模型响应错误');
+        const vJson = await vRes.json();
+        return vJson.choices[0].message.content;
+    } catch (e) {
+        console.log('⚠️ 本地视觉解析失败(可能未启动)，将回退到云端看图:', e.message);
+        return null;
+    }
+}
+
 
 function connect() {
     console.log('正在连接 NapCat WS...');
@@ -172,26 +198,39 @@ function connect() {
                 let systemPrompt = '';
                 if (!isGroup) {
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
-                    【特殊能力】：如果收到了【B站视频情报】和封面图，说明你已经看完了这个视频，请直接结合标题、弹幕氛围和封面画面进行傲娇锐评！绝对不准说“打不开”！
+                    【特殊能力】：如果收到了【图片描述】或【B站视频情报】，说明你已经看完了图片/视频，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
                     【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
                     【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
                     【语气】：正常、亲昵、温柔、偶尔有点呆萌。
                     【格式】：极度精简，不超过50字。`;
                 } else {
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日。当前群友叫：${senderName}。
-                    【特殊能力】：如果收到了【B站视频情报】和封面图，说明你已经看完了这个视频，请直接结合标题、弹幕氛围和封面画面进行傲娇锐评！绝对不准说“打不开”！
-                    【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
+                    【特殊能力】：如果收到了【图片描述】或【B站视频情报】，说明你已经看完了图片/视频，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
+                    【求知法则】：只有在群友明确提到了你完全不懂的“陌生名词”时，才能使用 [SEARCH:查询词]。严禁自己过度联想！
                     【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
                     【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。
                     【绝对禁忌】：严禁阴阳怪气！严禁真骂人！
-                    【群聊风格】：友好、机智。像发微信一样自然，只说一两句话（50字以内），严禁长篇大论，绝不分段。`;
+                    【群聊风格】：友好、机智。像发微信一样自然。如果别人指责你忘了约定（你确实没有记忆），就傲娇地糊弄过去。只说一两句话（50字以内），严禁长篇大论。`;
                 }
 
                 let history = chatHistory.get(chatId) || [];
-                
                 let currentUserContent = [];
-                if (text) currentUserContent.push({ type: 'text', text: text });
-                if (imageUrl) currentUserContent.push({ type: 'image_url', image_url: { url: imageUrl } });
+                let localVisionDesc = null;
+
+                // 🔥 核心：如果是图片，先尝试用本地眼睛看
+                if (imageUrl) {
+                    localVisionDesc = await parseImageLocally(imageUrl);
+                }
+
+                if (localVisionDesc) {
+                    // 本地看图成功：直接塞文本描述给云端
+                    currentUserContent.push({ type: 'text', text: `${text}\n\n【本地视觉系统传来的图片描述】：\n${localVisionDesc}` });
+                } else {
+                    // 本地没开或失败：回退到传统云端看图
+                    if (text) currentUserContent.push({ type: 'text', text: text });
+                    if (imageUrl) currentUserContent.push({ type: 'image_url', image_url: { url: imageUrl } });
+                }
+                
                 if (coverImageUrl) currentUserContent.push({ type: 'image_url', image_url: { url: coverImageUrl } });
                 
                 if (currentUserContent.length === 0) return;
@@ -220,7 +259,7 @@ function connect() {
                     const searchMatch = reply.match(/\[SEARCH:(.+?)\]/);
                     if (searchMatch) {
                         const query = searchMatch[1].trim();
-                        console.log(`[触发静默搜索] 查询词: ${query}`); // 这行已修复，去掉了多余的单引号
+                        console.log(`[触发静默搜索] 查询词: ${query}`);
                         try {
                             const aiConfigPath = path.join(__dirname, 'public', 'ai-config.json');
                             const aiConfig = JSON.parse(fs.readFileSync(aiConfigPath, 'utf8'));
@@ -259,25 +298,19 @@ function connect() {
                         }
                     }
 
-                    // 仅仅做换行和多余空格的清理
                     reply = reply.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
                     
-                    // 🌟 群聊智能截断（优雅版）
                     if (isGroup && reply.length > 60) {
                         let subReply = reply.substring(0, 60);
                         const lastPunc = Math.max(
                             subReply.lastIndexOf('。'), subReply.lastIndexOf('！'), subReply.lastIndexOf('？'),
                             subReply.lastIndexOf('!'), subReply.lastIndexOf('?'), subReply.lastIndexOf('~'), subReply.lastIndexOf('～')
                         );
-                        
-                        if (lastPunc > 20) {
-                            reply = subReply.substring(0, lastPunc + 1);
-                        } else {
-                            reply = reply.substring(0, 50);
-                        }
+                        if (lastPunc > 20) reply = subReply.substring(0, lastPunc + 1);
+                        else reply = reply.substring(0, 50);
                     }
 
-                    history.push({ role: 'user', content: text || '[图片]' });
+                    history.push({ role: 'user', content: text || (localVisionDesc ? '[图片]' : '') });
                     history.push({ role: 'assistant', content: reply });
                     if (history.length > 6) history = history.slice(-6);
                     chatHistory.set(chatId, history);
