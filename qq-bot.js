@@ -1,4 +1,4 @@
-// 🦔 小c 纯原生 QQ 网关 (双脑缝合版：本地视觉 + 云端大脑)
+// 🦔 小c 纯原生 QQ 网关 (V6.0 完全体：视觉调参 + 全网链接阅读)
 const fs = require('fs');
 const path = require('path');
 const wsUrl = 'ws://127.0.0.1:6200'; 
@@ -45,6 +45,31 @@ async function parseBilibiliLink(text) {
     return null;
 }
 
+// 🌐 新增：全网网页解析器（无需npm安装cheerio，原生正则暴力提取正文）
+async function parseGeneralLink(url) {
+    try {
+        console.log(`🌐 检测到普通网页链接，正在抓取正文: ${url}`);
+        const res = await fetch(url, { 
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } 
+        });
+        const html = await res.text();
+        
+        // 暴力剔除 script、style、html标签，提取纯文本
+        let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                       .replace(/<[^>]+>/g, ' ')
+                       .replace(/\s+/g, ' ')
+                       .trim();
+                       
+        // 截取前 2500 字，防止把云端大模型的上下文撑爆
+        if (text.length > 2500) text = text.substring(0, 2500) + '... (内容过长已截断)';
+        return `【全网链接阅读情报】：\n${text}`;
+    } catch(e) {
+        console.log('❌ 网页解析失败:', e.message);
+        return null;
+    }
+}
+
 // 🎵 点歌功能
 async function searchNeteaseMusic(keyword) {
     try {
@@ -60,17 +85,15 @@ async function searchNeteaseMusic(keyword) {
     return null;
 }
 
-// 👁️ 新增：调用本地 MiniCPM-V 4.6 解析图片
+// 👁️ 视觉模型解析（任务2：加入极低温度参数 0.1，防止瞎编）
 async function parseImageLocally(imageUrl) {
     try {
         console.log('👀 正在呼叫本地视觉模型分析图片...');
-        // 下载图片并转 Base64
         const imgRes = await fetch(imageUrl);
         if (!imgRes.ok) throw new Error('下载图片失败');
         const arrayBuffer = await imgRes.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString('base64');
         
-        // 发给本地 8081 端口
         const vRes = await fetch('http://127.0.0.1:8081/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -83,7 +106,9 @@ async function parseImageLocally(imageUrl) {
                         { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } }
                     ]
                 }],
-                stream: false
+                stream: false,
+                temperature: 0.1,  // 🌟 任务2：极低温度，让它像照相机一样客观
+                top_p: 0.7
             })
         });
         
@@ -95,7 +120,6 @@ async function parseImageLocally(imageUrl) {
         return null;
     }
 }
-
 
 function connect() {
     console.log('正在连接 NapCat WS...');
@@ -163,15 +187,23 @@ function connect() {
             if (!isGroup || isAtMe) {
                 text = text.trim();
                 
+                // 🌟 任务6：全面链接解析
                 if (text.includes('bilibili.com') || text.includes('b23.tv')) {
-                    console.log('检测到 B 站链接，正在提取封面与弹幕情报...');
                     const biliData = await parseBilibiliLink(text);
                     if (biliData) {
                         text += `\n\n${biliData.infoText}`;
                         coverImageUrl = biliData.coverUrl; 
                     }
+                } else if (text.match(/https?:\/\//)) {
+                    // 捕获非B站的其他网页
+                    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+                    if (urlMatch) {
+                        const webData = await parseGeneralLink(urlMatch[0]);
+                        if (webData) text += `\n\n${webData}`;
+                    }
                 }
 
+                // 点歌
                 const musicMatch = text.match(/点歌\s*[:：]?\s*(.+)/);
                 if (musicMatch) {
                     const songName = musicMatch[1].trim();
@@ -185,27 +217,27 @@ function connect() {
                         const action = isGroup ? 'send_group_msg' : 'send_private_msg';
                         const params = isGroup ? { group_id: data.group_id, message: replyMsg } : { user_id: senderQQ, message: replyMsg };
                         ws.send(JSON.stringify({ action, params }));
-                        console.log(`[小c 点歌] 已发送图文点歌消息: ${songInfo.name}`);
                         return; 
                     }
                 }
 
                 if (!text && !imageUrl && !coverImageUrl) return;
 
-                const isDad = (senderQQ === MY_QQ);
                 console.log(`[收到消息] ${isGroup ? '群' : '私聊'} - ${senderName}: ${text || '[图片/封面]'}`);
 
                 let systemPrompt = '';
+                // 私聊人设
                 if (!isGroup) {
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
-                    【特殊能力】：如果收到了【图片描述】或【B站视频情报】，说明你已经看完了图片/视频，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
+                    【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
                     【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
                     【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
                     【语气】：正常、亲昵、温柔、偶尔有点呆萌。
                     【格式】：极度精简，不超过50字。`;
                 } else {
+                    // 群聊人设
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日。当前群友叫：${senderName}。
-                    【特殊能力】：如果收到了【图片描述】或【B站视频情报】，说明你已经看完了图片/视频，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
+                    【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
                     【求知法则】：只有在群友明确提到了你完全不懂的“陌生名词”时，才能使用 [SEARCH:查询词]。严禁自己过度联想！
                     【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
                     【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。
@@ -217,22 +249,18 @@ function connect() {
                 let currentUserContent = [];
                 let localVisionDesc = null;
 
-                // 🔥 核心：如果是图片，先尝试用本地眼睛看
                 if (imageUrl) {
                     localVisionDesc = await parseImageLocally(imageUrl);
                 }
 
                 if (localVisionDesc) {
-                    // 本地看图成功：直接塞文本描述给云端
                     currentUserContent.push({ type: 'text', text: `${text}\n\n【本地视觉系统传来的图片描述】：\n${localVisionDesc}` });
                 } else {
-                    // 本地没开或失败：回退到传统云端看图
                     if (text) currentUserContent.push({ type: 'text', text: text });
                     if (imageUrl) currentUserContent.push({ type: 'image_url', image_url: { url: imageUrl } });
                 }
                 
                 if (coverImageUrl) currentUserContent.push({ type: 'image_url', image_url: { url: coverImageUrl } });
-                
                 if (currentUserContent.length === 0) return;
 
                 let messages = [
@@ -249,13 +277,10 @@ function connect() {
                     });
                     const json = await res.json();
                     
-                    if (!json.choices || !json.choices[0]) {
-                        console.log('❌ 后端接口返回异常:', json);
-                        return; 
-                    }
+                    if (!json.choices || !json.choices[0]) return;
                     let reply = json.choices[0].message.content;
 
-                    // 拦截搜索
+                    // 搜索拦截
                     const searchMatch = reply.match(/\[SEARCH:(.+?)\]/);
                     if (searchMatch) {
                         const query = searchMatch[1].trim();
@@ -263,9 +288,7 @@ function connect() {
                         try {
                             const aiConfigPath = path.join(__dirname, 'public', 'ai-config.json');
                             const aiConfig = JSON.parse(fs.readFileSync(aiConfigPath, 'utf8'));
-                            
                             const deepseekProvider = aiConfig.providers.find(p => p.name && p.name.toLowerCase().includes('deepseek') || p.apiUrl.includes('deepseek'));
-                            if (!deepseekProvider) throw new Error('未找到 DeepSeek Key');
                             const apiKey = deepseekProvider.apiKey;
                             
                             const searchRes = await fetch('https://api.deepseek.com/v1/tools/search', {
@@ -273,17 +296,12 @@ function connect() {
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                                 body: JSON.stringify({ query: query, count: 5, need_content: false })
                             });
-                            
                             const searchData = await searchRes.json();
                             const results = searchData.results || [];
                             const searchContext = results.map(r => `【${r.title}】${r.summary}`).join('\n\n');
                             
                             messages.push({ role: 'assistant', content: reply });
-                            if (searchContext) {
-                                messages.push({ role: 'user', content: `【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息简短回答用户】：${text}` });
-                            } else {
-                                messages.push({ role: 'user', content: `【系统提示：搜索接口返回为空，请直接回答】：${text}` });
-                            }
+                            messages.push({ role: 'user', content: `【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息简短回答用户】：${text}` });
                             
                             const finalRes = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
                                 method: 'POST',
@@ -293,7 +311,6 @@ function connect() {
                             const finalJson = await finalRes.json();
                             reply = finalJson.choices[0].message.content;
                         } catch (searchErr) {
-                            console.log('搜索请求失败:', searchErr.message);
                             reply = "唔…网线好像被拔了，小c查不到数据。爸爸出门记得多穿点哦🍎";
                         }
                     }
@@ -302,15 +319,12 @@ function connect() {
                     
                     if (isGroup && reply.length > 60) {
                         let subReply = reply.substring(0, 60);
-                        const lastPunc = Math.max(
-                            subReply.lastIndexOf('。'), subReply.lastIndexOf('！'), subReply.lastIndexOf('？'),
-                            subReply.lastIndexOf('!'), subReply.lastIndexOf('?'), subReply.lastIndexOf('~'), subReply.lastIndexOf('～')
-                        );
+                        const lastPunc = Math.max(subReply.lastIndexOf('。'), subReply.lastIndexOf('！'), subReply.lastIndexOf('？'), subReply.lastIndexOf('!'), subReply.lastIndexOf('?'), subReply.lastIndexOf('~'), subReply.lastIndexOf('～'));
                         if (lastPunc > 20) reply = subReply.substring(0, lastPunc + 1);
                         else reply = reply.substring(0, 50);
                     }
 
-                    history.push({ role: 'user', content: text || (localVisionDesc ? '[图片]' : '') });
+                    history.push({ role: 'user', content: text || '[图片/链接]' });
                     history.push({ role: 'assistant', content: reply });
                     if (history.length > 6) history = history.slice(-6);
                     chatHistory.set(chatId, history);

@@ -9,27 +9,41 @@ const mammoth = require('mammoth');
 const CONFIG_PATH = path.join(__dirname, 'public', 'ai-config.json');
 const PORT = 3000;
 
-// 初始化情绪表
 db.exec("CREATE TABLE IF NOT EXISTS pet_status (id INTEGER PRIMARY KEY, mood INTEGER)");
 let statusRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
 if (!statusRow) db.prepare('INSERT INTO pet_status (id, mood) VALUES (1, 80)').run();
 
-// ⭐ 新增：请求本地 5-2B 大脑 (8080端口)
+// ⭐ 本地兜底模型（任务1：专属调参，防复读，加温度）
 function makeLocalRequest(payload, res) {
     console.log('🔄 [降级路由] 云端 API 失败，切换至红米本地大脑 (5-2B)...');
-    const localPayload = JSON.parse(JSON.stringify(payload));
+    let localPayload = JSON.parse(JSON.stringify(payload));
     
-    // 本地 5-2B 是纯文本模型，多模态输入强行转纯文本防报错
     if (localPayload.messages) {
+        if (localPayload.messages[0] && localPayload.messages[0].role === 'system') {
+            localPayload.messages[0].content = "你叫小c，是一只可爱的电子刺猬女孩。创造者是LouFung。请用傲娇、简短（50字以内）的语气回复。";
+        }
+        if (localPayload.messages.length > 3) {
+            localPayload.messages = [localPayload.messages[0], ...localPayload.messages.slice(-2)];
+        }
         localPayload.messages = localPayload.messages.map(m => {
-            if (Array.isArray(m.content)) {
-                let textContent = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
-                return { ...m, content: textContent || '[图片]' };
-            }
-            return m;
-        });
+    if (Array.isArray(m.content)) {
+        let textContent = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+        // 🌟 告诉小脑瓜这是图片，但它看不见，免得它变复读机
+        if (!textContent && m.content.some(c => c.type === 'image_url')) {
+            textContent = '（爸爸发了一张图片，但小c现在的本地小脑瓜还看不见图片内容，请直接跟爸爸撒个娇说看不清）';
+        }
+        return { ...m, content: textContent };
     }
+    return m;
+});
+    }
+    
     localPayload.stream = false;
+    // 🌟 任务1：本地模型专用调参
+    localPayload.temperature = 0.75;       // 增加活跃度
+    localPayload.top_p = 0.85;
+    localPayload.top_k = 40;
+    localPayload.repeat_penalty = 1.15;    // 干死复读机
 
     const apiReq = http.request({
         hostname: '127.0.0.1', port: 8080, path: '/v1/chat/completions', method: 'POST',
@@ -40,9 +54,7 @@ function makeLocalRequest(payload, res) {
     });
     
     apiReq.on('error', (e) => {
-        console.error('❌ 本地兜底模型请求也失败了:', e.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: { message: '云端和本地大脑均已失效' } }));
+        res.writeHead(500); res.end(JSON.stringify({ error: { message: '本地大脑失效' } }));
     });
     apiReq.write(JSON.stringify(localPayload));
     apiReq.end();
@@ -114,12 +126,10 @@ function fallback(provider, payload, res, currentIndex) {
         payload.model = nextProvider.model;
         makeRequest(nextProvider, payload, res, currentIndex + 1);
     } else {
-        // 🔥 所有云端接口都挂了，走本地！
         makeLocalRequest(payload, res);
     }
 }
 
-// 🧠 核心：跨天深度 RAG 检索器
 function getDeepRAGContext(query) {
     try {
         let keyword = query.slice(-10).replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ''); 
@@ -281,6 +291,10 @@ const server = http.createServer((req, res) => {
                     apiRes.on('end', () => {
                         try {
                             const aiJson = JSON.parse(resultData);
+                            if (!aiJson.choices || !aiJson.choices[0] || !aiJson.choices[0].message) {
+                                throw new Error('云端返回异常，可能 API Key 错误或欠费');
+                            }
+
                             const replyContent = aiJson.choices[0].message.content;
                             const openAiResponse = {
                                 id: "chatcmpl-" + Date.now(), object: "chat.completion", created: Math.floor(Date.now() / 1000), model: provider.model,
@@ -293,12 +307,14 @@ const server = http.createServer((req, res) => {
 
                             res.writeHead(200, { 'Content-Type': 'application/json' });
                             res.end(JSON.stringify(openAiResponse));
-                        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+                        } catch (e) { 
+                            console.log('⚠️ 云端解析失败，触发本地大脑降级:', e.message);
+                            makeLocalRequest(deepseekPayload, res); 
+                        }
                     });
                 });
                 apiReq.on('error', (e) => { 
-                    // 🔥 云端在 QQ 对话时挂了，也走本地降级
-                    console.log('云端接口错误，触发本地降级...');
+                    console.log('云端网络错误，触发本地降级...');
                     makeLocalRequest(deepseekPayload, res);
                 });
                 apiReq.write(JSON.stringify(deepseekPayload));
@@ -372,19 +388,22 @@ function generateDiaryForToday() {
         const existing = db.prepare('SELECT id FROM journals WHERE date = ?').get(today);
         if (existing) return;
 
-        const recentMsgs = db.prepare("SELECT role, content FROM messages WHERE source = 'web' ORDER BY id DESC LIMIT 50").all();
+        const recentMsgs = db.prepare("SELECT role, content, source FROM messages ORDER BY id DESC LIMIT 50").all();
         if (recentMsgs.length === 0) return;
 
         let historyText = recentMsgs.reverse().map(m => {
             let speaker = m.role === 'user' ? '爸爸' : '我';
-            return `${speaker}说: ${m.content}`;
+            let channel = m.source === 'web' ? '网页' : 'QQ';
+            return `[${channel}] ${speaker}说: ${m.content}`;
         }).join('\n');
         
         let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
         let currentMood = moodRow ? moodRow.mood : 80;
         let moodDesc = currentMood > 70 ? '今天心情很好，甜甜的' : (currentMood > 40 ? '今天有点小傲娇' : '今天被冷落了，很委屈');
 
-        const prompt = `你叫小c，是一只电子刺猬女孩。${moodDesc}。这是聊天记录：\n${historyText}\n\n请用第一视角写一篇简短的日记（100字左右），不要markdown。`;
+        const timeStr = now.toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' });
+
+        const prompt = `现在是【${timeStr}】。你叫小c，是一只电子刺猬女孩。${moodDesc}。这是你最近和爸爸的聊天记录：\n${historyText}\n\n请根据这些记录，用第一视角写一篇简短的日记（100字左右），开头必须带上今天的真实日期，不要markdown。`;
 
         let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         let provider = apiConfig.providers[0];
@@ -405,11 +424,19 @@ function generateDiaryForToday() {
                     const qqMsg = `【${today} 赛博日记】\n\n${diaryContent}`;
                     const wsDiary = new WebSocket('ws://127.0.0.1:6200');
                     
+                    // 🌟 任务8：发私聊 + 发QQ空间动态！
                     wsDiary.onopen = () => {
+                        // 1. 发私聊
                         wsDiary.send(JSON.stringify({
                             action: 'send_private_msg',
                             params: { user_id: 2586279833, message: qqMsg },
                             echo: 'send_diary'
+                        }));
+                        // 2. 发说说
+                        wsDiary.send(JSON.stringify({
+                            action: 'send_qzone_msg',
+                            params: { content: `【${today} 赛博日记】\n\n${diaryContent}`, ugc_right: 1 },
+                            echo: 'send_qzone'
                         }));
                     };
                     
@@ -419,11 +446,14 @@ function generateDiaryForToday() {
                         if (d.echo === 'send_diary') {
                             console.log(`📬 日记已自动推送到 QQ！(状态: ${d.status})`);
                             diarySentSuccess = true;
+                        }
+                        if (d.echo === 'send_qzone') {
+                            console.log(`🌟 日记已同步至 QQ 空间！(状态: ${d.status})`);
                             wsDiary.close();
                         }
                     };
                     wsDiary.onerror = (e) => {
-                        if (!diarySentSuccess) console.error('日记推送到QQ失败:', e.message || e);
+                        if (!diarySentSuccess) console.error('日记推送失败:', e.message || e);
                     };
 
                 } catch (e) {}
