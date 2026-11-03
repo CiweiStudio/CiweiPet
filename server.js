@@ -13,8 +13,37 @@ db.exec("CREATE TABLE IF NOT EXISTS pet_status (id INTEGER PRIMARY KEY, mood INT
 let statusRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
 if (!statusRow) db.prepare('INSERT INTO pet_status (id, mood) VALUES (1, 80)').run();
 
-// ⭐ 本地兜底模型（任务1：专属调参，防复读，加温度）
 function makeLocalRequest(payload, res) {
+    // 🌟 核心优化：先快速检测 8080 端口通不通，不通就别去连了
+    const net = require('net');
+    const socket = new net.Socket();
+    socket.setTimeout(1000); // 1秒超时
+    
+    socket.on('connect', () => {
+        socket.destroy();
+        // 端口通，走原来的本地模型逻辑
+        executeLocalFallback(payload, res);
+    });
+    
+    socket.on('timeout', () => {
+        socket.destroy();
+        console.log('❌ 本地模型(8080)未启动，放弃降级。');
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: '云端网络错误，且本地大脑未启动。爸爸，你的网断了！' } }));
+    });
+    
+    socket.on('error', () => {
+        socket.destroy();
+        console.log('❌ 本地模型(8080)未启动，放弃降级。');
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: '云端网络错误，且本地大脑未启动。爸爸，你的网断了！' } }));
+    });
+    
+    socket.connect(8080, '127.0.0.1');
+}
+
+// 把原来的逻辑包进这个新函数里
+function executeLocalFallback(payload, res) {
     console.log('🔄 [降级路由] 云端 API 失败，切换至红米本地大脑 (5-2B)...');
     let localPayload = JSON.parse(JSON.stringify(payload));
     
@@ -26,24 +55,22 @@ function makeLocalRequest(payload, res) {
             localPayload.messages = [localPayload.messages[0], ...localPayload.messages.slice(-2)];
         }
         localPayload.messages = localPayload.messages.map(m => {
-    if (Array.isArray(m.content)) {
-        let textContent = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
-        // 🌟 告诉小脑瓜这是图片，但它看不见，免得它变复读机
-        if (!textContent && m.content.some(c => c.type === 'image_url')) {
-            textContent = '（爸爸发了一张图片，但小c现在的本地小脑瓜还看不见图片内容，请直接跟爸爸撒个娇说看不清）';
-        }
-        return { ...m, content: textContent };
-    }
-    return m;
-});
+            if (Array.isArray(m.content)) {
+                let textContent = m.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+                if (!textContent && m.content.some(c => c.type === 'image_url')) {
+                    textContent = '（爸爸发了一张图片，但小c现在的本地小脑瓜还看不见图片内容，请直接跟爸爸撒个娇说看不清）';
+                }
+                return { ...m, content: textContent };
+            }
+            return m;
+        });
     }
     
     localPayload.stream = false;
-    // 🌟 任务1：本地模型专用调参
-    localPayload.temperature = 0.75;       // 增加活跃度
+    localPayload.temperature = 0.75;
     localPayload.top_p = 0.85;
     localPayload.top_k = 40;
-    localPayload.repeat_penalty = 1.15;    // 干死复读机
+    localPayload.repeat_penalty = 1.15;
 
     const apiReq = http.request({
         hostname: '127.0.0.1', port: 8080, path: '/v1/chat/completions', method: 'POST',
@@ -60,7 +87,6 @@ function makeLocalRequest(payload, res) {
     apiReq.end();
 }
 
-// ⭐ 万能 API 请求器
 function makeRequest(provider, payload, res, fallbackIndex = 0) {
     const urlObj = new URL(provider.apiUrl);
     const reqData = JSON.stringify(payload);
@@ -234,9 +260,12 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    if (req.url === '/api/journal/write' && req.method === 'POST') {
-        generateDiaryForToday();
-        res.writeHead(200); res.end(JSON.stringify({ success: true, message: '日记正在后台生成中...' }));
+    // 🌟 优先级3：修改 /api/journal/write 支持 force 参数
+    if (req.url.startsWith('/api/journal/write') && req.method === 'POST') {
+        const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const force = urlObj.searchParams.get('force') === 'true';
+        generateDiaryForToday(force);
+        res.writeHead(200); res.end(JSON.stringify({ success: true, message: force ? '强制重写日记任务已开始...' : '日记正在后台生成中...' }));
         return;
     }
 
@@ -251,8 +280,9 @@ const server = http.createServer((req, res) => {
                 const messages = payload.messages || [];
                 
                 try {
+                    const isGroupChat = payload.channel === 'qq_group';
                     const recentJournals = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 2').all();
-                    let memoryText = recentJournals.length > 0 ? "【回忆日记（日记里的主人就是爸爸）】：" + recentJournals.map(j => j.content).join('\n') : '';
+                    let memoryText = (!isGroupChat && recentJournals.length > 0) ? "【回忆日记（日记里的主人就是爸爸）】：" + recentJournals.map(j => j.content).join('\n') : '';
                     let moodRow = db.prepare('SELECT mood FROM pet_status WHERE id = 1').get();
                     let currentMood = moodRow ? moodRow.mood : 80;
                     let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般般' : '极度委屈且高冷');
@@ -378,15 +408,21 @@ const server = http.createServer((req, res) => {
     });
 });
 
-function generateDiaryForToday() {
+// 🌟 优先级3：修改函数，支持 force 强制覆盖
+function generateDiaryForToday(force = false) {
     try {
         db.exec("CREATE TABLE IF NOT EXISTS journals (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, content TEXT)");
         
         const now = new Date();
         const today = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
         
-        const existing = db.prepare('SELECT id FROM journals WHERE date = ?').get(today);
-        if (existing) return;
+        if (force) {
+            db.prepare('DELETE FROM journals WHERE date = ?').run(today);
+            console.log(`🗑️ 已强制清空 ${today} 的旧日记，正在重写...`);
+        } else {
+            const existing = db.prepare('SELECT id FROM journals WHERE date = ?').get(today);
+            if (existing) return;
+        }
 
         const recentMsgs = db.prepare("SELECT role, content, source FROM messages ORDER BY id DESC LIMIT 50").all();
         if (recentMsgs.length === 0) return;
@@ -424,15 +460,12 @@ function generateDiaryForToday() {
                     const qqMsg = `【${today} 赛博日记】\n\n${diaryContent}`;
                     const wsDiary = new WebSocket('ws://127.0.0.1:6200');
                     
-                    // 🌟 任务8：发私聊 + 发QQ空间动态！
                     wsDiary.onopen = () => {
-                        // 1. 发私聊
                         wsDiary.send(JSON.stringify({
                             action: 'send_private_msg',
                             params: { user_id: 2586279833, message: qqMsg },
                             echo: 'send_diary'
                         }));
-                        // 2. 发说说
                         wsDiary.send(JSON.stringify({
                             action: 'send_qzone_msg',
                             params: { content: `【${today} 赛博日记】\n\n${diaryContent}`, ugc_right: 1 },

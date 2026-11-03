@@ -1,4 +1,4 @@
-// 🦔 小c 纯原生 QQ 网关 (V6.0 完全体：视觉调参 + 全网链接阅读)
+// 🦔 小c 纯原生 QQ 网关 (V6.5 智能路由与指令版)
 const fs = require('fs');
 const path = require('path');
 const wsUrl = 'ws://127.0.0.1:6200'; 
@@ -45,7 +45,7 @@ async function parseBilibiliLink(text) {
     return null;
 }
 
-// 🌐 新增：全网网页解析器（无需npm安装cheerio，原生正则暴力提取正文）
+// 🌐 全网网页解析器（带智能降级）
 async function parseGeneralLink(url) {
     try {
         console.log(`🌐 检测到普通网页链接，正在抓取正文: ${url}`);
@@ -54,19 +54,18 @@ async function parseGeneralLink(url) {
         });
         const html = await res.text();
         
-        // 暴力剔除 script、style、html标签，提取纯文本
         let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
                        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
                        .replace(/<[^>]+>/g, ' ')
                        .replace(/\s+/g, ' ')
                        .trim();
                        
-        // 截取前 2500 字，防止把云端大模型的上下文撑爆
         if (text.length > 2500) text = text.substring(0, 2500) + '... (内容过长已截断)';
         return `【全网链接阅读情报】：\n${text}`;
     } catch(e) {
-        console.log('❌ 网页解析失败:', e.message);
-        return null;
+        console.log('⚠️ 网页抓取失败(可能被墙)，将降级到云端搜索:', e.message);
+        // 🔥 优先级1：抓不到就扔给模型去搜
+        return `【全网链接阅读情报】：\n(本地抓取该网页失败，请直接使用 [SEARCH:${url}] 去获取该网页的信息)`;
     }
 }
 
@@ -85,7 +84,7 @@ async function searchNeteaseMusic(keyword) {
     return null;
 }
 
-// 👁️ 视觉模型解析（任务2：加入极低温度参数 0.1，防止瞎编）
+// 👁️ 视觉模型解析
 async function parseImageLocally(imageUrl) {
     try {
         console.log('👀 正在呼叫本地视觉模型分析图片...');
@@ -107,7 +106,7 @@ async function parseImageLocally(imageUrl) {
                     ]
                 }],
                 stream: false,
-                temperature: 0.1,  // 🌟 任务2：极低温度，让它像照相机一样客观
+                temperature: 0.1,
                 top_p: 0.7
             })
         });
@@ -187,7 +186,6 @@ function connect() {
             if (!isGroup || isAtMe) {
                 text = text.trim();
                 
-                // 🌟 任务6：全面链接解析
                 if (text.includes('bilibili.com') || text.includes('b23.tv')) {
                     const biliData = await parseBilibiliLink(text);
                     if (biliData) {
@@ -195,7 +193,6 @@ function connect() {
                         coverImageUrl = biliData.coverUrl; 
                     }
                 } else if (text.match(/https?:\/\//)) {
-                    // 捕获非B站的其他网页
                     const urlMatch = text.match(/https?:\/\/[^\s]+/);
                     if (urlMatch) {
                         const webData = await parseGeneralLink(urlMatch[0]);
@@ -203,7 +200,6 @@ function connect() {
                     }
                 }
 
-                // 点歌
                 const musicMatch = text.match(/点歌\s*[:：]?\s*(.+)/);
                 if (musicMatch) {
                     const songName = musicMatch[1].trim();
@@ -226,23 +222,21 @@ function connect() {
                 console.log(`[收到消息] ${isGroup ? '群' : '私聊'} - ${senderName}: ${text || '[图片/封面]'}`);
 
                 let systemPrompt = '';
-                // 私聊人设
                 if (!isGroup) {
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
                     【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
                     【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
+                    【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请你在回复的最后，必须单独输出一个标签 [TOOL:WRITE_DIARY]。如果爸爸让你“重新写日记”或“覆盖日记”，请输出 [TOOL:REWRITE_DIARY]。
                     【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
-                    【语气】：正常、亲昵、温柔、偶尔有点呆萌。
-                    【格式】：极度精简，不超过50字。`;
+                    【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
                 } else {
-                    // 群聊人设
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日。当前群友叫：${senderName}。
-                    【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
-                    【求知法则】：只有在群友明确提到了你完全不懂的“陌生名词”时，才能使用 [SEARCH:查询词]。严禁自己过度联想！
-                    【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
-                    【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。
-                    【绝对禁忌】：严禁阴阳怪气！严禁真骂人！
-                    【群聊风格】：友好、机智。像发微信一样自然。如果别人指责你忘了约定（你确实没有记忆），就傲娇地糊弄过去。只说一两句话（50字以内），严禁长篇大论。`;
+【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
+【求知法则】：只有在群友明确提到了你完全不懂的“陌生名词”时，才能使用 [SEARCH:查询词]。严禁自己过度联想！
+【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
+【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。现在是群聊，【绝对不准】叫任何群友爸爸！【绝对不准】用私聊时的撒娇语气！
+【绝对禁忌】：严禁阴阳怪气！严禁真骂人！
+【群聊风格】：友好、机智。像发微信一样自然。如果别人指责你忘了约定（你确实没有记忆），就傲娇地糊弄过去。只说一两句话（50字以内），严禁长篇大论。`;
                 }
 
                 let history = chatHistory.get(chatId) || [];
@@ -280,7 +274,7 @@ function connect() {
                     if (!json.choices || !json.choices[0]) return;
                     let reply = json.choices[0].message.content;
 
-                    // 搜索拦截
+                    // 拦截搜索
                     const searchMatch = reply.match(/\[SEARCH:(.+?)\]/);
                     if (searchMatch) {
                         const query = searchMatch[1].trim();
@@ -315,14 +309,35 @@ function connect() {
                         }
                     }
 
+                    // 🌟 优先级3：拦截重写日记指令
+                    if (reply.includes('[TOOL:REWRITE_DIARY]')) {
+                        console.log('⚡ [Agent执行] 拦截到重写日记指令，正在呼叫 server.js 覆盖并重新生成...');
+                        reply = reply.replace('[TOOL:REWRITE_DIARY]', '').trim();
+                        // 带上 force=true 参数
+                        fetch('http://127.0.0.1:3000/api/journal/write?force=true', { method: 'POST' })
+                            .then(r => console.log('✅ 重写日记任务已提交后台'))
+                            .catch(e => console.error('❌ 触发重写日记失败:', e.message));
+                    }
+                    
+                    // 拦截普通写日记指令
+                    if (reply.includes('[TOOL:WRITE_DIARY]')) {
+                        console.log('⚡ [Agent执行] 拦截到写日记指令，正在呼叫 server.js...');
+                        reply = reply.replace('[TOOL:WRITE_DIARY]', '').trim();
+                        fetch('http://127.0.0.1:3000/api/journal/write', { method: 'POST' })
+                            .then(r => console.log('✅ 日记生成任务已提交后台'))
+                            .catch(e => console.error('❌ 触发日记生成失败:', e.message));
+                    }
+
                     reply = reply.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
                     
-                    if (isGroup && reply.length > 60) {
+                    if (isGroup && reply.length > 60 && !reply.includes('```')) {
                         let subReply = reply.substring(0, 60);
                         const lastPunc = Math.max(subReply.lastIndexOf('。'), subReply.lastIndexOf('！'), subReply.lastIndexOf('？'), subReply.lastIndexOf('!'), subReply.lastIndexOf('?'), subReply.lastIndexOf('~'), subReply.lastIndexOf('～'));
                         if (lastPunc > 20) reply = subReply.substring(0, lastPunc + 1);
-                        else reply = reply.substring(0, 50);
+                        else reply = subReply.substring(0, 50);
                     }
+
+                    if (!reply) reply = "哼，本刺猬已经去办了！";
 
                     history.push({ role: 'user', content: text || '[图片/链接]' });
                     history.push({ role: 'assistant', content: reply });
