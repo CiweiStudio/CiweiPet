@@ -1,7 +1,7 @@
 {
   "name": "CiweiPet · 小c",
   "short_name": "小c",
-  "description": "LouFung 的电子宠物",
+  "description": "LouFung 的赛博女儿",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
