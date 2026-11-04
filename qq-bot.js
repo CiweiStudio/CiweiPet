@@ -226,7 +226,7 @@ function connect() {
                     systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
                     【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
                     【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
-                    【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请你在回复的最后，必须单独输出一个标签 [TOOL:WRITE_DIARY]。如果爸爸让你“重新写日记”或“覆盖日记”，请输出 [TOOL:REWRITE_DIARY]。
+                    【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果让你“查服务器状态”、“查内存温度”或“查电量”，请输出 [TOOL:SYS_INFO]。
                     【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
                     【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
                 } else {
@@ -309,26 +309,51 @@ function connect() {
                         }
                     }
 
-                    // 🌟 优先级3：拦截重写日记指令
-                    if (reply.includes('[TOOL:REWRITE_DIARY]')) {
-                        console.log('⚡ [Agent执行] 拦截到重写日记指令，正在呼叫 server.js 覆盖并重新生成...');
-                        reply = reply.replace('[TOOL:REWRITE_DIARY]', '').trim();
-                        // 带上 force=true 参数
-                        fetch('http://127.0.0.1:3000/api/journal/write?force=true', { method: 'POST' })
-                            .then(r => console.log('✅ 重写日记任务已提交后台'))
-                            .catch(e => console.error('❌ 触发重写日记失败:', e.message));
-                    }
-                    
-                    // 拦截普通写日记指令
-                    if (reply.includes('[TOOL:WRITE_DIARY]')) {
-                        console.log('⚡ [Agent执行] 拦截到写日记指令，正在呼叫 server.js...');
-                        reply = reply.replace('[TOOL:WRITE_DIARY]', '').trim();
-                        fetch('http://127.0.0.1:3000/api/journal/write', { method: 'POST' })
-                            .then(r => console.log('✅ 日记生成任务已提交后台'))
-                            .catch(e => console.error('❌ 触发日记生成失败:', e.message));
-                    }
+                    // 🌟 新增：拦截查服务器状态指令
+if (reply.includes('[TOOL:SYS_INFO]')) {
+    console.log('⚡ [Agent执行] 拦截到查状态指令，正在获取红米系统信息...');
+    reply = reply.replace('[TOOL:SYS_INFO]', '').trim();
+    try {
+        const sysRes = await fetch('http://127.0.0.1:3000/api/tools/sysinfo');
+        const sysData = await sysRes.json();
+        const sysStatus = sysData.status || '获取失败';
+        
+        // 拿到真实数据后，让云端大脑重新组织语言
+        messages.push({ role: 'assistant', content: reply || "等我查查..." });
+        messages.push({ role: 'user', content: `【系统提示：这是红米服务器的真实状态：${sysStatus}。请用傲娇的语气向爸爸汇报，并提醒他注意散热或充电。】` });
+        
+        const sysFinalRes = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: messages, channel: isGroup ? 'qq_group' : 'qq_private' })
+        });
+        const sysFinalJson = await sysFinalRes.json();
+        reply = sysFinalJson.choices[0].message.content;
+    } catch (sysErr) {
+        reply = "呜…小c查不到服务器状态，可能线缆松了。";
+    }
+}
 
-                    reply = reply.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+// 🌟 优先级3：拦截重写日记指令
+if (reply.includes('[TOOL:REWRITE_DIARY]')) {
+    console.log('⚡ [Agent执行] 拦截到重写日记指令，正在呼叫 server.js 覆盖并重新生成...');
+    reply = reply.replace('[TOOL:REWRITE_DIARY]', '').trim();
+    fetch('http://127.0.0.1:3000/api/journal/write?force=true', { method: 'POST' })
+        .then(r => console.log('✅ 重写日记任务已提交后台'))
+        .catch(e => console.error('❌ 触发重写日记失败:', e.message));
+}
+
+// 拦截普通写日记指令
+if (reply.includes('[TOOL:WRITE_DIARY]')) {
+    console.log('⚡ [Agent执行] 拦截到写日记指令，正在呼叫 server.js...');
+    reply = reply.replace('[TOOL:WRITE_DIARY]', '').trim();
+    fetch('http://127.0.0.1:3000/api/journal/write', { method: 'POST' })
+        .then(r => console.log('✅ 日记生成任务已提交后台'))
+        .catch(e => console.error('❌ 触发日记生成失败:', e.message));
+}
+
+// 清理换行
+reply = reply.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
                     
                     if (isGroup && reply.length > 60 && !reply.includes('```')) {
                         let subReply = reply.substring(0, 60);
