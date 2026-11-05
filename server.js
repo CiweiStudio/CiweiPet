@@ -301,7 +301,8 @@ const server = http.createServer((req, res) => {
                     }
                 } catch(e) {}
 
-                const timeStr = new Date().toLocaleString('zh-CN', { hour12: false });
+                const tn = new Date();
+const timeStr = `${tn.getMonth() + 1}月${tn.getDate()}日 ${String(tn.getHours()).padStart(2, '0')}:${String(tn.getMinutes()).padStart(2, '0')}`;
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                 let userContent = '';
                 if (lastUserMsg) {

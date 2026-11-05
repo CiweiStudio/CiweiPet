@@ -1,8 +1,7 @@
-// 🦔 小c 纯原生 QQ 网关 (V6.7 主动说话 + B站精读 + 缓存优化版)
+// 🦔 小c 纯原生 QQ 网关 (V6.8 主动说话 + B站安利 + 缓存优化版)
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
-const bili = require('./bili')(db);
 
 const wsUrl = 'ws://127.0.0.1:6200'; 
 const MY_QQ = 2586279833; 
@@ -33,11 +32,20 @@ const PROACTIVE = {
     groupMaxLen: 20,
     nightStart: '23:30',
     nightEnd: '08:00',
+    // 🛰️ B站安利
+    biliShare: true,        // 她"刷到好东西来安利你"总开关
+    biliShareChance: 0.25,  // 每次到点，多大概率走安利流程
+    biliShareCap: 2,        // 每天最多真安利几条（PASS 不占额度）
+    shareMaxLen: 45,        // 安利语长度
+    biliReport: true,       // 看观看上报（需要小号 cookie；没有会自动跳过）
 };
 
 let proactiveTimer = null;
 let lastHumanAt = 0;
 const recentProactive = [];   // 最近说过的话，用来防复读
+
+// 🌟 B站模块（放配置后面，把开关传给它）
+const bili = require('./bili')(db, { reportWatch: PROACTIVE.biliReport, reportDailyCap: 3 });
 
 db.exec(`CREATE TABLE IF NOT EXISTS proactive (
     id INTEGER PRIMARY KEY,
@@ -51,6 +59,11 @@ db.exec(`CREATE TABLE IF NOT EXISTS proactive (
 db.exec(`CREATE TABLE IF NOT EXISTS proactive_group (
     target TEXT PRIMARY KEY,
     day TEXT DEFAULT '',
+    count INTEGER DEFAULT 0
+)`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS bili_share (
+    day TEXT PRIMARY KEY,
     count INTEGER DEFAULT 0
 )`);
 
@@ -122,6 +135,18 @@ function bumpGroup(id) {
     else db.prepare('UPDATE proactive_group SET count = count + 1 WHERE target = ?').run(key);
 }
 
+function biliShareCount() {
+    const r = db.prepare('SELECT day, count FROM bili_share WHERE day = ?').get(todayStr());
+    return r ? r.count : 0;
+}
+
+function bumpBiliShare() {
+    const t = todayStr();
+    const r = db.prepare('SELECT count FROM bili_share WHERE day = ?').get(t);
+    if (!r) db.prepare('INSERT INTO bili_share (day, count) VALUES (?, 1)').run(t);
+    else db.prepare('UPDATE bili_share SET count = count + 1 WHERE day = ?').run(t);
+}
+
 function pickTarget() {
     const groups = (PROACTIVE.groups || []).filter((g) => g && g.id);
     if (groups.length && Math.random() < PROACTIVE.groupChance) {
@@ -144,6 +169,26 @@ function clampLine(line, max) {
     return p > max * 0.5 ? line.slice(0, p + 1) : cut;
 }
 
+// 🧠 统一的 /v1 调用（主动说话和安利判定共用）
+async function callV1(systemPrompt, userContent, channel) {
+    const res = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userContent },
+            ],
+            channel,
+        }),
+        signal: AbortSignal.timeout(45000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    let reply = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    return reply ? String(reply) : null;
+}
+
 async function buildClues(target) {
     const now = new Date();
     const h = now.getHours();
@@ -155,16 +200,29 @@ async function buildClues(target) {
     const parts = [`现在是${period}（${hhmm(now)}），没有人跟你说话。`];
     if (lastUser && lastUser.content) parts.push(`你们上次聊到：${String(lastUser.content).slice(0, 40)}。`);
 
-    // 偶尔让她"刷"到一个 B 站视频，作为话头
+    // 偶尔让她"刷"到一个 B 站视频，作为话头（带链接，告别"链接没存住"）
+    let video = null;
     if (Math.random() < 0.2) {
         try {
             const v = await bili.pickFeed();
-            if (v) parts.push(`你刚刷到B站一个视频《${v.title}》（${v.owner || '未知UP'}），简介：${String(v.desc || '').slice(0, 60)}。`);
+            if (v) {
+                video = v;
+                parts.push(`你刚刷到B站一个视频《${v.title}》（${v.owner || '未知UP'}），简介：${String(v.desc || '').slice(0, 60)}。视频链接：${v.link}。想聊它就把链接贴在句尾。`);
+            }
         } catch (e) { /* 刷不到就算了 */ }
     }
 
     parts.push('你可以问他在干嘛、吐槽、自言自语、或者分享刚看到的东西。');
-    return parts.join('');
+    return { text: parts.join(''), video };
+}
+
+function appendVideoLink(line, video, isGroup) {
+    // 私聊才自动拼链接；她自己带了就不重复
+    if (!video || !video.link || isGroup) return line;
+    if (line.includes('b23.tv') || (video.bvid && line.includes(video.bvid))) return line;
+    const t = video.title || '';
+    const mentioned = ['视频', '刷到', '链接', '快看', '看看'].some((k) => line.includes(k)) || (t.length >= 6 && line.includes(t.slice(0, 6)));
+    return mentioned ? line + ' ' + video.link : line;
 }
 
 async function think(target) {
@@ -176,33 +234,56 @@ async function think(target) {
     const avoid = recentProactive.slice(-5).map((s) => '· ' + s).join('\n') || '· （还没有）';
 
     const userContent = [
-        '【主动发言任务】' + clues,
+        '【主动发言任务】' + clues.text,
         `请主动说一句话，不超过 ${maxLen} 字，像在 QQ 上随口说的。不要颜文字，不要换行，不要问"有什么可以帮你"。`,
         '不要重复你最近说过的话：',
         avoid,
     ].join('\n');
 
-    const res = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userContent },
-            ],
-            channel: isGroup ? 'qq_group' : 'qq_private',
-        }),
-        signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    let reply = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    let reply = await callV1(systemPrompt, userContent, isGroup ? 'qq_group' : 'qq_private');
     if (!reply) return null;
 
-    reply = String(reply).replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
+    reply = reply.replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
     reply = clampLine(reply, maxLen);
+    reply = appendVideoLink(reply, clues.video, isGroup);
     return reply || null;
+}
+
+// 🛰️ B站安利流程：刷到 → 粗判 → 精读 → 终判 → 一句安利
+async function biliShareTick() {
+    try {
+        const v = await bili.pickFeed();
+        if (!v) return null;
+        const sys = buildSystemPrompt(false, 'LouFung');
+
+        // 第一道：只看标题简介，便宜
+        const shallow = await callV1(sys,
+            `【安利判断任务】你刚刷到一个视频：\n标题：《${v.title}》\nUP主：${v.owner || '未知'}\n简介：${String(v.desc || '').slice(0, 100)}\n根据标题和简介判断：这条你会不会想安利给爸爸？想就输出 [WANT]，不想就输出 [PASS]。只输出标签，不要别的话。`,
+            'qq_private');
+        if (!shallow || !shallow.includes('[WANT]')) {
+            console.log(`🛰️ [安利] 粗判没兴趣，跳过：《${v.title}》`);
+            return null;
+        }
+
+        // 第二道：真精读，再看一遍
+        const parsed = await bili.parseBvid(v.bvid, { deep: true });
+        if (!parsed) return null;
+        const verdict = await callV1(sys,
+            `【安利任务】你认真看完了这个视频：\n${parsed.infoText}\n\n视频链接：${v.link}\n如果看完真觉得有意思，输出 [WANT]，再输出一句不超过 40 字的安利，像在 QQ 上跟爸爸随口安利，别复述标题，可以吐槽可以锐评，句尾不要带链接（系统会自动加）。如果看完觉得一般，输出 [PASS]。`,
+            'qq_private');
+        if (!verdict || !verdict.includes('[WANT]')) {
+            console.log(`🛰️ [安利] 精读后放弃：《${v.title}》`);
+            return null;
+        }
+
+        let line = verdict.replace(/\[(WANT|PASS)\]/g, '').replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
+        line = clampLine(line, PROACTIVE.shareMaxLen || 45);
+        if (!line) return null;
+        return { line, bvid: v.bvid, title: v.title };
+    } catch (e) {
+        console.error('⚠️ 安利流程出错:', e.message);
+        return null;
+    }
 }
 
 function sendProactive(target, line) {
@@ -247,6 +328,25 @@ async function tick() {
         if (cur.count >= PROACTIVE.dailyCap) return scheduleNext(atMorning(now).getTime() - now.getTime());
         if (lastHumanAt && Date.now() - lastHumanAt < PROACTIVE.quietAfterChatMin * 60000) {
             return scheduleNext(rand(PROACTIVE.minGapMin, PROACTIVE.maxGapMin) * 60000);
+        }
+
+        // 🛰️ B站安利分支：只发私聊；PASS 不占每日额度，本轮落到正常闲聊
+        if (PROACTIVE.biliShare && Math.random() < PROACTIVE.biliShareChance && biliShareCount() < PROACTIVE.biliShareCap) {
+            const share = await biliShareTick();
+            if (share && share.line) {
+                if (sendProactive({ type: 'private', id: PROACTIVE.privateQQ }, share.line)) {
+                    db.prepare('UPDATE proactive SET count = count + 1, streak = streak + 1, last_at = ? WHERE id = 1').run(Date.now());
+                    recentProactive.push(share.line);
+                    if (recentProactive.length > 8) recentProactive.shift();
+                    bumpBiliShare();
+                    // 真看了就上报观看，喂她自己的推荐流
+                    try { await bili.reportWatchByBvid(share.bvid); } catch (e) {}
+                    scheduleNext(rand(PROACTIVE.minGapMin, PROACTIVE.maxGapMin) * 60000);
+                    return;
+                }
+                return scheduleNext(2 * 60000);
+            }
+            // share 为 null（PASS/失败）→ 继续走正常闲聊
         }
 
         const target = pickTarget();
@@ -357,7 +457,7 @@ function buildSystemPrompt(isGroup, senderName) {
         return `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
 【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
 【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
-【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果让你“查服务器状态”、“查内存温度”或“查电量”，请输出 [TOOL:SYS_INFO]。
+【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。只有当你明确想查“服务器状态”、“内存温度”或“电量”时，才输出 [TOOL:SYS_INFO]，别的话一律不要输出这个标签。
 【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
 【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
     }

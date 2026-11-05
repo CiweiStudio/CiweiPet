@@ -1,8 +1,8 @@
-// 🦔 小c 的 B 站模块：统一请求头 + wbi 签名 + 热评 / AI总结 / 字幕 / 推荐流
-// 用法：const bili = require('./bili')(db);
+// 🦔 小c 的 B 站模块：统一请求头 + wbi 签名 + 热评 / AI总结 / 字幕 / 推荐流 / 观看上报
+// 用法：const bili = require('./bili')(db, { reportWatch: true, reportDailyCap: 3 });
 // 登录态（可选）：同目录放 bili-cookie.json，内容可以是
 //   {"SESSDATA":"...","bili_jct":"...","buvid3":"..."} 或一整个 cookie 字符串
-// 不登录也能用：视频信息、热评、热门/排行；AI总结和字幕需要登录才有内容。
+// 不登录也能用：视频信息、热评、热门/排行；AI总结、字幕、推荐流、观看上报需要登录。
 
 const fs = require('fs');
 const path = require('path');
@@ -22,6 +22,13 @@ const MIXIN_TAB = [
 
 function randInt(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function localToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
 function fmtDur(sec) {
     sec = Number(sec) || 0;
     const h = Math.floor(sec / 3600);
@@ -31,13 +38,19 @@ function fmtDur(sec) {
     return h > 0 ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
 }
 
-module.exports = function createBili(db) {
+module.exports = function createBili(db, opts) {
+    opts = opts || {};
+    const REPORT_ENABLED = !!opts.reportWatch;
+    const REPORT_CAP = opts.reportDailyCap || 3;
+
     db.exec('CREATE TABLE IF NOT EXISTS bili_seen (bvid TEXT PRIMARY KEY, ts INTEGER)');
+    db.exec('CREATE TABLE IF NOT EXISTS bili_write (day TEXT PRIMARY KEY, count INTEGER DEFAULT 0, stopped INTEGER DEFAULT 0)');
 
     let imgKey = '', subKey = '', wbiAt = 0;
     let buvid = '';
     let cookieCache = '';
     let cookieAt = 0;
+    let rcmdIdx = 0;
 
     // ---------- cookie ----------
     function readCookieFile() {
@@ -207,9 +220,34 @@ module.exports = function createBili(db) {
         } catch (e) { /* 忽略 */ }
     }
 
+    // ---------- 写操作账本（观看上报的闸门） ----------
+    function writeRow() {
+        return db.prepare('SELECT * FROM bili_write WHERE day = ?').get(localToday());
+    }
+    function writeCount() {
+        const r = writeRow();
+        return r && r.day === localToday() ? r.count : 0;
+    }
+    function writeStopped() {
+        const r = writeRow();
+        return !!(r && r.stopped === 1);
+    }
+    function bumpWrite() {
+        const t = localToday();
+        const r = db.prepare('SELECT count FROM bili_write WHERE day = ?').get(t);
+        if (!r) db.prepare('INSERT INTO bili_write (day, count) VALUES (?, 1)').run(t);
+        else db.prepare('UPDATE bili_write SET count = count + 1 WHERE day = ?').run(t);
+    }
+    function stopWrite() {
+        const t = localToday();
+        const r = db.prepare('SELECT stopped FROM bili_write WHERE day = ?').get(t);
+        if (!r) db.prepare('INSERT INTO bili_write (day, stopped) VALUES (?, 1)').run(t);
+        else db.prepare('UPDATE bili_write SET stopped = 1 WHERE day = ?').run(t);
+    }
+
     // ---------- 解析一个 bvid ----------
-    async function parseBvid(bvid, opts) {
-        opts = opts || {};
+    async function parseBvid(bvid, opts2) {
+        opts2 = opts2 || {};
         const view = await getView(bvid);
         if (!view) return null;
 
@@ -221,7 +259,7 @@ module.exports = function createBili(db) {
         lines.push(`时长：${fmtDur(view.duration)} | 播放：${st.view || '-'} | 弹幕：${st.danmaku || '-'}`);
         if (view.desc) lines.push(`简介：${String(view.desc).replace(/\s+/g, ' ').slice(0, 150)}`);
 
-        if (opts.deep !== false) {
+        if (opts2.deep !== false) {
             const aid = view.aid;
             const cid = view.cid;
             const upMid = view.owner && view.owner.mid;
@@ -239,10 +277,10 @@ module.exports = function createBili(db) {
 
         let infoText = lines.join('\n');
         if (infoText.length > 2400) infoText = infoText.slice(0, 2400) + '... (内容过长已截断)';
-        return { infoText, coverUrl: view.pic, title: view.title, bvid };
+        return { infoText, coverUrl: view.pic, title: view.title, bvid, link: 'https://b23.tv/' + bvid };
     }
 
-    // ---------- 链接解析（替换原来的 parseBilibiliLink 实现） ----------
+    // ---------- 链接解析 ----------
     async function parseLink(text) {
         try {
             const urlMatch = String(text).match(/https?:\/\/[^\s]+/);
@@ -264,15 +302,51 @@ module.exports = function createBili(db) {
         }
     }
 
-    // ---------- 主动刷：热门 / 排行 ----------
+    // ---------- 登录态推荐流（她的"自己的feed"） ----------
+    async function getRcmdFeed() {
+        if (!(await refreshWbi())) return null;
+        rcmdIdx += 1;
+        const d = new Date();
+        const online_day = `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        const q = signParams({
+            fresh_idx_1h: Math.max(1, rcmdIdx),
+            fresh_idx: Math.max(1, rcmdIdx),
+            fetch_for_follow: 0,
+            online_day,
+        });
+        const j = await getJson(`https://api.bilibili.com/x/web-interface/wbi/index/top/rcmd?${q}`);
+        const items = (j && j.code === 0 && j.data && Array.isArray(j.data.items)) ? j.data.items : [];
+        const vids = items
+            .filter((i) => i && i.bvid)
+            .map((i) => ({
+                bvid: i.bvid,
+                title: i.title,
+                desc: String(i.desc || '').replace(/\s+/g, ' ').slice(0, 120),
+                owner: i.owner && i.owner.name,
+            }));
+        if (!vids.length) return null;
+        const fresh = vids.filter((v) => !isSeen(v.bvid));
+        if (!fresh.length) return null;
+        const v = fresh[randInt(0, fresh.length - 1)];
+        markSeen(v.bvid);
+        v.link = 'https://b23.tv/' + v.bvid;
+        return v;
+    }
+
+    // ---------- 主动刷：推荐流优先，热门/排行兜底 ----------
     async function pickFeed() {
-        const urls = [
-            'https://api.bilibili.com/x/web-interface/popular?ps=20&pn=1',
-            'https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all',
-        ];
-        const url = urls[randInt(0, urls.length - 1)];
         try {
             await ensureBuvid();
+            const rcmd = await getRcmdFeed();
+            if (rcmd) {
+                console.log(`🛰️ [B站] 从推荐流抽到：《${rcmd.title}》`);
+                return rcmd;
+            }
+            const urls = [
+                'https://api.bilibili.com/x/web-interface/popular?ps=20&pn=1',
+                'https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all',
+            ];
+            const url = urls[randInt(0, urls.length - 1)];
             const j = await getJson(url);
             const list = (j && j.code === 0 && j.data && Array.isArray(j.data.list)) ? j.data.list : [];
             const fresh = list.filter((v) => v && v.bvid && !isSeen(v.bvid));
@@ -284,11 +358,52 @@ module.exports = function createBili(db) {
                 title: v.title,
                 desc: String(v.desc || '').replace(/\s+/g, ' ').slice(0, 120),
                 owner: v.owner && v.owner.name,
+                link: 'https://b23.tv/' + v.bvid,
             };
         } catch (e) {
             return null;
         }
     }
 
-    return { parseLink, parseBvid, pickFeed, getView, isSeen, markSeen };
+    // ---------- 观看上报（闸门：开关 + 每日上限 + 出错当天停） ----------
+    async function reportWatchByBvid(bvid) {
+        try {
+            if (!REPORT_ENABLED) return false;
+            const c = cookie();
+            const jct = (c.match(/bili_jct=([^;]+)/) || [])[1];
+            if (!jct || !c.includes('SESSDATA')) {
+                console.log('⚠️ [B站] 未检测到小号 cookie，观看上报跳过');
+                return false;
+            }
+            if (writeStopped()) return false;
+            if (writeCount() >= REPORT_CAP) {
+                console.log('⚠️ [B站] 今日观看上报已达上限');
+                return false;
+            }
+            const view = await getView(bvid);
+            if (!view || !view.aid || !view.cid) { stopWrite(); return false; }
+            const progress = Math.max(30, Math.min(Number(view.duration) || 60, 300));
+            const res = await fetch('https://api.bilibili.com/x/v2/history/report', {
+                method: 'POST',
+                headers: { ...headers(), 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `aid=${view.aid}&cid=${view.cid}&progress=${progress}&platform=web&csrf=${jct}`,
+                signal: AbortSignal.timeout(10000),
+            });
+            const j = await res.json().catch(() => null);
+            if (!j || j.code !== 0) {
+                console.log(`⚠️ [B站] 观看上报失败 code=${j ? j.code : '无响应'}，今天停手`);
+                stopWrite();
+                return false;
+            }
+            bumpWrite();
+            console.log(`✅ [B站] 观看已上报：《${view.title}》（今日第 ${writeCount()} 次）`);
+            return true;
+        } catch (e) {
+            console.log('⚠️ [B站] 观看上报异常:', e.message, '——今天停手');
+            stopWrite();
+            return false;
+        }
+    }
+
+    return { parseLink, parseBvid, pickFeed, getView, isSeen, markSeen, reportWatchByBvid };
 };
