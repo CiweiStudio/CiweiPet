@@ -46,6 +46,8 @@ function makeLocalRequest(payload, res) {
 function executeLocalFallback(payload, res) {
     console.log('🔄 [降级路由] 云端 API 失败，切换至红米本地大脑 (5-2B)...');
     let localPayload = JSON.parse(JSON.stringify(payload));
+    // 🌟 缓存优化配套：本地小脑不认识 thinking 字段，转发前删掉
+    delete localPayload.thinking;
     
     if (localPayload.messages) {
         if (localPayload.messages[0] && localPayload.messages[0].role === 'system') {
@@ -279,6 +281,7 @@ const server = http.createServer((req, res) => {
                 const payload = JSON.parse(body);
                 const messages = payload.messages || [];
                 
+                let ragContext = '';
                 try {
                     const isGroupChat = payload.channel === 'qq_group';
                     const recentJournals = db.prepare('SELECT content FROM journals ORDER BY id DESC LIMIT 2').all();
@@ -288,13 +291,13 @@ const server = http.createServer((req, res) => {
                     let moodDesc = currentMood > 70 ? '开心粘人' : (currentMood > 40 ? '一般般' : '极度委屈且高冷');
                     
                     const lastMsg = messages.filter(m => m.role === 'user').pop();
-                    let ragContext = '';
                     if (lastMsg && typeof lastMsg.content === 'string') {
                         ragContext = getDeepRAGContext(lastMsg.content);
                     }
 
+                    // 🌟 缓存优化①：system 里只留稳定内容（日记+情绪），RAG 挪走，保住前缀缓存
                     if (messages.length > 0 && messages[0].role === 'system') {
-                        messages[0].content += `\n${memoryText}\n${ragContext}【当前情绪状态】：${moodDesc}。如果情绪极度委屈，请保持冷漠，群聊回复不超过5个字。`;
+                        messages[0].content += `\n${memoryText}\n【当前情绪状态】：${moodDesc}。如果情绪极度委屈，请保持冷漠，群聊回复不超过5个字。`;
                     }
                 } catch(e) {}
 
@@ -302,16 +305,21 @@ const server = http.createServer((req, res) => {
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                 let userContent = '';
                 if (lastUserMsg) {
+                    // 🌟 缓存优化②：时间 + RAG 这些每轮都变的，全部拼在最后一条消息的尾部
                     if (typeof lastUserMsg.content === 'string') {
                         userContent = lastUserMsg.content;
-                        lastUserMsg.content = `【现在是：${timeStr}】\n` + userContent;
+                        lastUserMsg.content = `【现在是：${timeStr}】\n` + userContent + (ragContext ? `\n${ragContext}` : '');
                     } else if (Array.isArray(lastUserMsg.content)) {
                         userContent = '[图片/多媒体]';
                         lastUserMsg.content.unshift({ type: 'text', text: `【现在是：${timeStr}】\n` });
+                        if (ragContext) lastUserMsg.content.push({ type: 'text', text: ragContext });
                     }
                 }
 
+                // 🌟 缓存优化③：deepseek-flash 默认开思考模式（按输出价计费，很贵）；只在 DeepSeek 时关掉
                 const deepseekPayload = { model: provider.model, messages: messages, stream: false };
+                if (provider.apiUrl && provider.apiUrl.includes('deepseek')) deepseekPayload.thinking = { type: 'disabled' };
+
                 const urlObj = new URL(provider.apiUrl);
                 const options = { hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey } };
 
@@ -444,6 +452,8 @@ function generateDiaryForToday(force = false) {
         let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         let provider = apiConfig.providers[0];
         const payload = { model: provider.model, messages: [{ role: 'user', content: prompt }], stream: false };
+        // 🌟 缓存优化③配套：日记生成走 DeepSeek 时同样不思考
+        if (provider.apiUrl && provider.apiUrl.includes('deepseek')) payload.thinking = { type: 'disabled' };
         const urlObj = new URL(provider.apiUrl);
         const options = { hostname: urlObj.hostname, path: urlObj.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + provider.apiKey } };
         

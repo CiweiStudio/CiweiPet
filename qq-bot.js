@@ -1,48 +1,279 @@
-// 🦔 小c 纯原生 QQ 网关 (V6.5 智能路由与指令版)
+// 🦔 小c 纯原生 QQ 网关 (V6.7 主动说话 + B站精读 + 缓存优化版)
 const fs = require('fs');
 const path = require('path');
+const db = require('./db');
+const bili = require('./bili')(db);
+
 const wsUrl = 'ws://127.0.0.1:6200'; 
 const MY_QQ = 2586279833; 
 const BOT_QQ = 1262884085; 
 
 let reconnectTimer = null;
+let ws = null;
 const chatHistory = new Map(); 
 const pendingRequests = new Map(); 
 
-// 🎬 B站视频完全体解析器
-async function parseBilibiliLink(text) {
-    try {
-        const urlMatch = text.match(/https?:\/\/[^\s]+/);
-        if (!urlMatch) return null;
-        let url = urlMatch[0];
-        if (url.includes('b23.tv')) {
-            const redirectRes = await fetch(url, { redirect: 'follow' });
-            url = redirectRes.url;
-        }
-        const bvMatch = url.match(/BV[a-zA-Z0-9]+/);
-        if (!bvMatch) return null;
-        const bvid = bvMatch[0];
+// ============================================================
+// 🌟 主动说话配置（群号改这里就行）
+// ============================================================
+const PROACTIVE = {
+    enabled: true,
+    privateQQ: MY_QQ,
+    groups: [
+        // 想让她在群里主动说话，加一行：
+        // { id: 123456789, name: '摸鱼群', dailyCap: 3 },
+    ],
+    minGapMin: 20,          // 黏人档：20–40 分钟
+    maxGapMin: 40,
+    dailyCap: 40,           // 每天最多主动说多少句
+    groupDailyCap: 3,       // 每个群每天最多几句
+    quietAfterChatMin: 10,  // 你刚聊完，10 分钟内不插嘴
+    groupChance: 0.25,      // 有群的时候，多少次轮到群
+    privateMaxLen: 30,
+    groupMaxLen: 20,
+    nightStart: '23:30',
+    nightEnd: '08:00',
+};
 
-        const res = await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`);
-        const json = await res.json();
-        
-        if (json.code === 0) {
-            const data = json.data;
-            let info = `【B站视频情报】：\n标题：${data.title}\nUP主：${data.owner.name}\n简介：${data.desc.substring(0, 150)}...`;
-            try {
-                const cid = data.cid;
-                const danmakuRes = await fetch(`https://api.bilibili.com/x/v1/dm/list.so?oid=${cid}`);
-                const danmakuText = await danmakuRes.text(); 
-                const danmakuList = danmakuText.match(/<d p="[^"]*">([^<]*)<\/d>/g);
-                if (danmakuList && danmakuList.length > 0) {
-                    let topDanmaku = danmakuList.slice(0, 30).map(d => d.replace(/<[^>]+>/g, '')).join(' | ');
-                    info += `\n【热门弹幕】：${topDanmaku}`;
-                }
-            } catch(e) { console.log('弹幕获取失败:', e.message); }
-            return { infoText: info, coverUrl: data.pic };
+let proactiveTimer = null;
+let lastHumanAt = 0;
+const recentProactive = [];   // 最近说过的话，用来防复读
+
+db.exec(`CREATE TABLE IF NOT EXISTS proactive (
+    id INTEGER PRIMARY KEY,
+    next_at INTEGER DEFAULT 0,
+    day TEXT DEFAULT '',
+    count INTEGER DEFAULT 0,
+    streak INTEGER DEFAULT 0,
+    last_at INTEGER DEFAULT 0
+)`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS proactive_group (
+    target TEXT PRIMARY KEY,
+    day TEXT DEFAULT '',
+    count INTEGER DEFAULT 0
+)`);
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function todayStr(d) { d = d || new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function hhmm(d) { d = d || new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+function toMin(s) { const p = String(s).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); }
+
+function isQuiet(now) {
+    const m = now.getHours() * 60 + now.getMinutes();
+    const s = toMin(PROACTIVE.nightStart);
+    const e = toMin(PROACTIVE.nightEnd);
+    return s > e ? (m >= s || m < e) : (m >= s && m < e);
+}
+
+function atMorning(now) {
+    const d = new Date(now.getTime());
+    d.setHours(8, rand(0, 20), 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+}
+
+function getState() {
+    let row = db.prepare('SELECT * FROM proactive WHERE id = 1').get();
+    if (!row) {
+        db.prepare('INSERT INTO proactive (id, next_at) VALUES (1, 0)').run();
+        row = db.prepare('SELECT * FROM proactive WHERE id = 1').get();
+    }
+    return row;
+}
+
+function scheduleNext(delayMs) {
+    if (proactiveTimer) clearTimeout(proactiveTimer);
+    const delay = Math.max(30000, Math.floor(delayMs));
+    try {
+        db.prepare('UPDATE proactive SET next_at = ? WHERE id = 1').run(Date.now() + delay);
+    } catch (e) { /* 忽略 */ }
+    proactiveTimer = setTimeout(tick, delay);
+}
+
+function startProactive() {
+    if (!PROACTIVE.enabled) return;
+    const st = getState();
+    const now = Date.now();
+    if (st.next_at && st.next_at > now && st.next_at - now < 6 * 3600 * 1000) {
+        const left = st.next_at - now;
+        console.log(`⏰ 主动说话：恢复上次计时，${Math.round(left / 60000)} 分钟后开口`);
+        scheduleNext(left);
+    } else {
+        scheduleNext(rand(1, 5) * 60000);
+        console.log('⏰ 主动说话已启动，1–5 分钟后第一次开口');
+    }
+}
+
+function groupCount(id) {
+    const key = 'group_' + id;
+    const row = db.prepare('SELECT day, count FROM proactive_group WHERE target = ?').get(key);
+    if (!row) return 0;
+    return row.day === todayStr() ? row.count : 0;
+}
+
+function bumpGroup(id) {
+    const key = 'group_' + id;
+    const today = todayStr();
+    const row = db.prepare('SELECT day, count FROM proactive_group WHERE target = ?').get(key);
+    if (!row) db.prepare('INSERT INTO proactive_group (target, day, count) VALUES (?, ?, 1)').run(key, today);
+    else if (row.day !== today) db.prepare('UPDATE proactive_group SET day = ?, count = 1 WHERE target = ?').run(today, key);
+    else db.prepare('UPDATE proactive_group SET count = count + 1 WHERE target = ?').run(key);
+}
+
+function pickTarget() {
+    const groups = (PROACTIVE.groups || []).filter((g) => g && g.id);
+    if (groups.length && Math.random() < PROACTIVE.groupChance) {
+        const g = groups[rand(0, groups.length - 1)];
+        if (groupCount(g.id) < (g.dailyCap || PROACTIVE.groupDailyCap)) {
+            return { type: 'group', id: g.id, name: g.name };
         }
-    } catch(e) { console.log('B站解析失败:', e.message); }
-    return null;
+    }
+    return { type: 'private', id: PROACTIVE.privateQQ };
+}
+
+function clampLine(line, max) {
+    line = String(line).replace(/\s+/g, ' ').trim();
+    if (line.length <= max) return line;
+    const cut = line.slice(0, max);
+    const p = Math.max(
+        cut.lastIndexOf('。'), cut.lastIndexOf('！'), cut.lastIndexOf('？'),
+        cut.lastIndexOf('，'), cut.lastIndexOf('~'), cut.lastIndexOf('…')
+    );
+    return p > max * 0.5 ? line.slice(0, p + 1) : cut;
+}
+
+async function buildClues(target) {
+    const now = new Date();
+    const h = now.getHours();
+    const period = h < 5 ? '凌晨' : h < 8 ? '清早' : h < 11 ? '上午' : h < 13 ? '中午' : h < 18 ? '下午' : h < 23 ? '晚上' : '深夜';
+    const chatId = target.type === 'group' ? `group_${target.id}` : `private_${target.id}`;
+    const hist = chatHistory.get(chatId) || [];
+    const lastUser = [...hist].reverse().find((m) => m.role === 'user' && typeof m.content === 'string');
+
+    const parts = [`现在是${period}（${hhmm(now)}），没有人跟你说话。`];
+    if (lastUser && lastUser.content) parts.push(`你们上次聊到：${String(lastUser.content).slice(0, 40)}。`);
+
+    // 偶尔让她"刷"到一个 B 站视频，作为话头
+    if (Math.random() < 0.2) {
+        try {
+            const v = await bili.pickFeed();
+            if (v) parts.push(`你刚刷到B站一个视频《${v.title}》（${v.owner || '未知UP'}），简介：${String(v.desc || '').slice(0, 60)}。`);
+        } catch (e) { /* 刷不到就算了 */ }
+    }
+
+    parts.push('你可以问他在干嘛、吐槽、自言自语、或者分享刚看到的东西。');
+    return parts.join('');
+}
+
+async function think(target) {
+    const isGroup = target.type === 'group';
+    const senderName = isGroup ? (target.name || '群友') : 'LouFung';
+    const systemPrompt = buildSystemPrompt(isGroup, senderName);
+    const clues = await buildClues(target);
+    const maxLen = isGroup ? PROACTIVE.groupMaxLen : PROACTIVE.privateMaxLen;
+    const avoid = recentProactive.slice(-5).map((s) => '· ' + s).join('\n') || '· （还没有）';
+
+    const userContent = [
+        '【主动发言任务】' + clues,
+        `请主动说一句话，不超过 ${maxLen} 字，像在 QQ 上随口说的。不要颜文字，不要换行，不要问"有什么可以帮你"。`,
+        '不要重复你最近说过的话：',
+        avoid,
+    ].join('\n');
+
+    const res = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userContent },
+            ],
+            channel: isGroup ? 'qq_group' : 'qq_private',
+        }),
+        signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    let reply = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    if (!reply) return null;
+
+    reply = String(reply).replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
+    reply = clampLine(reply, maxLen);
+    return reply || null;
+}
+
+function sendProactive(target, line) {
+    if (!ws || ws.readyState !== 1) return false;
+    const isGroup = target.type === 'group';
+    const action = isGroup ? 'send_group_msg' : 'send_private_msg';
+    const params = isGroup ? { group_id: target.id, message: line } : { user_id: target.id, message: line };
+    ws.send(JSON.stringify({ action, params }));
+
+    console.log(`[小c 主动] ${isGroup ? '群' + target.id : '私聊'}：${line}`);
+    if (isGroup) bumpGroup(target.id);
+
+    // 主动消息也算聊天记录
+    const chatId = isGroup ? `group_${target.id}` : `private_${target.id}`;
+    const hist = chatHistory.get(chatId) || [];
+    hist.push({ role: 'assistant', content: line });
+    // 🌟 缓存优化④：只增不减，攒到 200 条再滑，保住前缀缓存
+    while (hist.length > 200) hist.shift();
+    chatHistory.set(chatId, hist);
+
+    try {
+        db.prepare('INSERT INTO messages (role, content, source) VALUES (?, ?, ?)')
+            .run('assistant', line, isGroup ? 'qq_group' : 'qq_private');
+    } catch (e) { /* 忽略 */ }
+    return true;
+}
+
+async function tick() {
+    try {
+        if (!PROACTIVE.enabled) return;
+        if (!ws || ws.readyState !== 1) return scheduleNext(2 * 60000);
+
+        const now = new Date();
+        const today = todayStr(now);
+        const st = getState();
+        if (st.day !== today) {
+            db.prepare('UPDATE proactive SET day = ?, count = 0 WHERE id = 1').run(today);
+        }
+        const cur = getState();
+
+        if (isQuiet(now)) return scheduleNext(atMorning(now).getTime() - now.getTime());
+        if (cur.count >= PROACTIVE.dailyCap) return scheduleNext(atMorning(now).getTime() - now.getTime());
+        if (lastHumanAt && Date.now() - lastHumanAt < PROACTIVE.quietAfterChatMin * 60000) {
+            return scheduleNext(rand(PROACTIVE.minGapMin, PROACTIVE.maxGapMin) * 60000);
+        }
+
+        const target = pickTarget();
+        const line = await think(target);
+        if (!line) return scheduleNext(rand(PROACTIVE.minGapMin, PROACTIVE.maxGapMin) * 60000);
+        if (!sendProactive(target, line)) return scheduleNext(2 * 60000);
+
+        db.prepare('UPDATE proactive SET count = count + 1, streak = streak + 1, last_at = ? WHERE id = 1').run(Date.now());
+        recentProactive.push(line);
+        if (recentProactive.length > 8) recentProactive.shift();
+
+        // 连着好几条没人理，就慢慢放慢
+        const after = getState();
+        let gap = rand(PROACTIVE.minGapMin, PROACTIVE.maxGapMin);
+        if (after.streak >= 6) gap = Math.max(gap * 3, 120);
+        else if (after.streak >= 3) gap = gap * 2;
+
+        scheduleNext(gap * 60000);
+    } catch (e) {
+        console.error('⚠️ 主动说话出错:', e.message);
+        scheduleNext(5 * 60000);
+    }
+}
+
+// 🎬 B站视频完全体解析器（实现在 bili.js 里，这里保留原函数名）
+async function parseBilibiliLink(text) {
+    return bili.parseLink(text);
 }
 
 // 🌐 全网网页解析器（带智能降级）
@@ -120,11 +351,33 @@ async function parseImageLocally(imageUrl) {
     }
 }
 
+// 🗣️ 人设（原 224–240 行的 prompt 原样搬出来，主动说话也用它）
+function buildSystemPrompt(isGroup, senderName) {
+    if (!isGroup) {
+        return `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
+【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
+【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
+【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果让你“查服务器状态”、“查内存温度”或“查电量”，请输出 [TOOL:SYS_INFO]。
+【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
+【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
+    }
+    return `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日。当前群友叫：${senderName}。
+【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
+【求知法则】：只有在群友明确提到了你完全不懂的“陌生名词”时，才能使用 [SEARCH:查询词]。严禁自己过度联想！
+【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
+【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。现在是群聊，【绝对不准】叫任何群友爸爸！【绝对不准】用私聊时的撒娇语气！
+【绝对禁忌】：严禁阴阳怪气！严禁真骂人！
+【群聊风格】：友好、机智。像发微信一样自然。如果别人指责你忘了约定（你确实没有记忆），就傲娇地糊弄过去。只说一两句话（50字以内），严禁长篇大论。`;
+}
+
 function connect() {
     console.log('正在连接 NapCat WS...');
-    const ws = new WebSocket(wsUrl);
+    ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => { console.log('✅ 成功接入 NapCat！'); };
+    ws.onopen = () => { 
+        console.log('✅ 成功接入 NapCat！'); 
+        startProactive();
+    };
 
     ws.onmessage = async (event) => {
         try {
@@ -183,6 +436,12 @@ function connect() {
                 }
             }
 
+            // 🌟 有人说话就重置"被冷落"计数，并且 10 分钟内不主动插嘴
+            if (chatId) {
+                lastHumanAt = Date.now();
+                try { db.prepare('UPDATE proactive SET streak = 0 WHERE id = 1').run(); } catch (e) {}
+            }
+
             if (!isGroup || isAtMe) {
                 text = text.trim();
                 
@@ -221,23 +480,7 @@ function connect() {
 
                 console.log(`[收到消息] ${isGroup ? '群' : '私聊'} - ${senderName}: ${text || '[图片/封面]'}`);
 
-                let systemPrompt = '';
-                if (!isGroup) {
-                    systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
-                    【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
-                    【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
-                    【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果让你“查服务器状态”、“查内存温度”或“查电量”，请输出 [TOOL:SYS_INFO]。
-                    【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
-                    【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
-                } else {
-                    systemPrompt = `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日。当前群友叫：${senderName}。
-【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
-【求知法则】：只有在群友明确提到了你完全不懂的“陌生名词”时，才能使用 [SEARCH:查询词]。严禁自己过度联想！
-【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
-【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。现在是群聊，【绝对不准】叫任何群友爸爸！【绝对不准】用私聊时的撒娇语气！
-【绝对禁忌】：严禁阴阳怪气！严禁真骂人！
-【群聊风格】：友好、机智。像发微信一样自然。如果别人指责你忘了约定（你确实没有记忆），就傲娇地糊弄过去。只说一两句话（50字以内），严禁长篇大论。`;
-                }
+                const systemPrompt = buildSystemPrompt(isGroup, senderName);
 
                 let history = chatHistory.get(chatId) || [];
                 let currentUserContent = [];
@@ -366,7 +609,8 @@ reply = reply.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
 
                     history.push({ role: 'user', content: text || '[图片/链接]' });
                     history.push({ role: 'assistant', content: reply });
-                    if (history.length > 6) history = history.slice(-6);
+                    // 🌟 缓存优化④：只增不减，攒到 200 条再滑，保住前缀缓存
+                    if (history.length > 200) history = history.slice(-200);
                     chatHistory.set(chatId, history);
 
                     const action = isGroup ? 'send_group_msg' : 'send_private_msg';
