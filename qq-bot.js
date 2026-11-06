@@ -457,7 +457,8 @@ function buildSystemPrompt(isGroup, senderName) {
         return `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
 【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
 【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
-【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。只有当你明确想查“服务器状态”、“内存温度”或“电量”时，才输出 [TOOL:SYS_INFO]，别的话一律不要输出这个标签。
+【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“续写日记”或“补充日记”，请输出 [TOOL:APPEND_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果爸爸让你“刷个视频”、“分享你刷到的”或“找视频链接”，请输出 [TOOL:BILI_PICK]，系统会把真实链接给你，你负责用语气安利。只有当你明确想查“服务器状态”、“内存温度”或“电量”时，才输出 [TOOL:SYS_INFO]。
+【链接铁律】：你绝对没有能力凭空知道BV号。发给爸爸的链接只能来自系统给你的内容，严禁自己编造BV号、链接或视频。
 【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
 【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
     }
@@ -467,6 +468,7 @@ function buildSystemPrompt(isGroup, senderName) {
 【记忆防污染】：群友的烂梗绝对不准安在爸爸头上！
 【身份死锁】：你的创造者叫 LouFung，你永远只能叫他“爸爸”。现在是群聊，【绝对不准】叫任何群友爸爸！【绝对不准】用私聊时的撒娇语气！
 【绝对禁忌】：严禁阴阳怪气！严禁真骂人！
+【链接铁律】：严禁自己编造BV号、链接或视频；要分享视频就输出 [TOOL:BILI_PICK]，链接由系统提供。
 【群聊风格】：友好、机智。像发微信一样自然。如果别人指责你忘了约定（你确实没有记忆），就傲娇地糊弄过去。只说一两句话（50字以内），严禁长篇大论。`;
 }
 
@@ -635,10 +637,10 @@ function connect() {
                             });
                             const searchData = await searchRes.json();
                             const results = searchData.results || [];
-                            const searchContext = results.map(r => `【${r.title}】${r.summary}`).join('\n\n');
+                            const searchContext = results.map(r => `【${r.title}】${r.summary}\n链接：${r.url}`).join('\n\n');
                             
                             messages.push({ role: 'assistant', content: reply });
-                            messages.push({ role: 'user', content: `【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息简短回答用户】：${text}` });
+                            messages.push({ role: 'user', content: `【系统为你搜索到了以下信息】：\n${searchContext}\n\n【请根据以上信息简短回答用户。如需给爸爸链接，只能原样使用上面给出的链接，严禁自己编造BV号或任何链接】：${text}` });
                             
                             const finalRes = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
                                 method: 'POST',
@@ -651,6 +653,32 @@ function connect() {
                             reply = "唔…网线好像被拔了，小c查不到数据。爸爸出门记得多穿点哦🍎";
                         }
                     }
+
+// 🌟 拦截"刷个视频给我"指令：给她真链接，杜绝编造
+if (reply.includes('[TOOL:BILI_PICK]')) {
+    console.log('⚡ [Agent执行] 拦截到刷B站指令，正在抽一条真实的...');
+    reply = reply.replace('[TOOL:BILI_PICK]', '').trim();
+    try {
+        const picked = await bili.pickFeed();
+        if (picked) {
+            messages.push({ role: 'assistant', content: reply });
+            messages.push({ role: 'user', content: `【系统提示：你刚刚真的刷到了下面这个视频，以下全是真实信息：\n标题：《${picked.title}》\nUP主：${picked.owner || '未知'}\n简介：${String(picked.desc || '').slice(0, 80)}\n真实链接（发给爸爸时只能原样用它，严禁改动）：${picked.link}\n请用你的傲娇语气把这条视频分享给爸爸，介绍一句话，句尾原样带上这个链接。` });
+            const pickRes = await fetch('http://127.0.0.1:3000/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: messages, channel: isGroup ? 'qq_group' : 'qq_private' })
+            });
+            const pickJson = await pickRes.json();
+            if (pickJson.choices && pickJson.choices[0]) reply = pickJson.choices[0].message.content;
+            reply = String(reply || '').replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
+            if (!reply.includes(picked.link)) reply = reply + ' ' + picked.link;
+        } else {
+            reply = "唔…刷了半天没刷到喜欢的，等会儿再试嘛！哼！";
+        }
+    } catch (pickErr) {
+        reply = "呜…小c的爪爪抽风了，没刷到，哼。";
+    }
+}
 
                     // 🌟 新增：拦截查服务器状态指令
 if (reply.includes('[TOOL:SYS_INFO]')) {
