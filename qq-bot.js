@@ -1,4 +1,4 @@
-// 🦔 小c 纯原生 QQ 网关 (V6.8 主动说话 + B站安利 + 缓存优化版)
+// 🦔 小c 纯原生 QQ 网关 (V6.9 主动说话 + B站满血版)
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
@@ -37,7 +37,11 @@ const PROACTIVE = {
     biliShareChance: 0.25,  // 每次到点，多大概率走安利流程
     biliShareCap: 2,        // 每天最多真安利几条（PASS 不占额度）
     shareMaxLen: 45,        // 安利语长度
-    biliReport: true,       // 看观看上报（需要小号 cookie；没有会自动跳过）
+    biliReport: true,       // 观看上报（喂她的推荐流）
+    // 🌟 评论区@爸爸
+    biliComment: true,      // 真·在B站评论区@你（一天最多1条）
+    biliCommentCap: 1,      // 每天最多评论几条
+    biliOwnerName: 'LouFoong',      // ← 【填这里】你的B站昵称，一字不差！不填就不评论
 };
 
 let proactiveTimer = null;
@@ -45,7 +49,16 @@ let lastHumanAt = 0;
 const recentProactive = [];   // 最近说过的话，用来防复读
 
 // 🌟 B站模块（放配置后面，把开关传给它）
-const bili = require('./bili')(db, { reportWatch: PROACTIVE.biliReport, reportDailyCap: 3 });
+const bili = require('./bili')(db, {
+    reportWatch: PROACTIVE.biliReport,
+    reportDailyCap: 3,
+    commentEnabled: PROACTIVE.biliComment,
+    commentCap: PROACTIVE.biliCommentCap,
+    ownerName: PROACTIVE.biliOwnerName,
+});
+
+// 🧠 安利判定专用人设：不带聊天格式要求，只准出标签（修复"全PASS"问题）
+const JUDGE_SYS = '你是小c，一只傲娇的电子刺猬女孩，私聊对象是爸爸。你的任务不是聊天，是替自己的B站账号筛选视频：看内容有没有意思，有没有想分享给爸爸的冲动。判断标准由你自己定，但你必须严格遵守输出格式要求，不要撒娇，不要寒暄，不要输出标签以外的任何内容。';
 
 db.exec(`CREATE TABLE IF NOT EXISTS proactive (
     id INTEGER PRIMARY KEY,
@@ -233,12 +246,17 @@ async function think(target) {
     const maxLen = isGroup ? PROACTIVE.groupMaxLen : PROACTIVE.privateMaxLen;
     const avoid = recentProactive.slice(-5).map((s) => '· ' + s).join('\n') || '· （还没有）';
 
-    const userContent = [
+    const userParts = [
         '【主动发言任务】' + clues.text,
         `请主动说一句话，不超过 ${maxLen} 字，像在 QQ 上随口说的。不要颜文字，不要换行，不要问"有什么可以帮你"。`,
         '不要重复你最近说过的话：',
         avoid,
-    ].join('\n');
+    ];
+    // 🌟 没刷到视频就明说，防止她瞎编"刚刷到宝贝视频"
+    if (!clues.video) {
+        userParts.push('【注意】本轮你没有刷到任何视频，严禁声称自己刷到了视频或要分享视频。');
+    }
+    const userContent = userParts.join('\n');
 
     let reply = await callV1(systemPrompt, userContent, isGroup ? 'qq_group' : 'qq_private');
     if (!reply) return null;
@@ -254,11 +272,10 @@ async function biliShareTick() {
     try {
         const v = await bili.pickFeed();
         if (!v) return null;
-        const sys = buildSystemPrompt(false, 'LouFung');
 
-        // 第一道：只看标题简介，便宜
-        const shallow = await callV1(sys,
-            `【安利判断任务】你刚刷到一个视频：\n标题：《${v.title}》\nUP主：${v.owner || '未知'}\n简介：${String(v.desc || '').slice(0, 100)}\n根据标题和简介判断：这条你会不会想安利给爸爸？想就输出 [WANT]，不想就输出 [PASS]。只输出标签，不要别的话。`,
+        // 第一道：只看标题简介，便宜（用判定人设，只出标签）
+        const shallow = await callV1(JUDGE_SYS,
+            `【安利判断任务】你刚刷到一个视频：\n标题：《${v.title}》\nUP主：${v.owner || '未知'}\n简介：${String(v.desc || '').slice(0, 100)}\n根据标题和简介判断：这条你会不会想安利给爸爸？想就输出 [WANT]，不想就输出 [PASS]。只输出 [WANT] 或 [PASS] 四个字加方括号，别的什么都不要输出。`,
             'qq_private');
         if (!shallow || !shallow.includes('[WANT]')) {
             console.log(`🛰️ [安利] 粗判没兴趣，跳过：《${v.title}》`);
@@ -268,18 +285,20 @@ async function biliShareTick() {
         // 第二道：真精读，再看一遍
         const parsed = await bili.parseBvid(v.bvid, { deep: true });
         if (!parsed) return null;
-        const verdict = await callV1(sys,
-            `【安利任务】你认真看完了这个视频：\n${parsed.infoText}\n\n视频链接：${v.link}\n如果看完真觉得有意思，输出 [WANT]，再输出一句不超过 40 字的安利，像在 QQ 上跟爸爸随口安利，别复述标题，可以吐槽可以锐评，句尾不要带链接（系统会自动加）。如果看完觉得一般，输出 [PASS]。`,
+        const verdict = await callV1(JUDGE_SYS,
+            `【安利任务】你认真看完了这个视频：\n${parsed.infoText}\n\n如果看完真觉得有意思，先输出 [WANT]，再另起一行输出一句不超过 40 字的安利，像在 QQ 上跟爸爸随口安利，别复述标题，可以吐槽可以锐评，不要带任何链接。如果看完觉得一般，只输出 [PASS]。`,
             'qq_private');
         if (!verdict || !verdict.includes('[WANT]')) {
             console.log(`🛰️ [安利] 精读后放弃：《${v.title}》`);
             return null;
         }
 
-        let line = verdict.replace(/\[(WANT|PASS)\]/g, '').replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
-        line = clampLine(line, PROACTIVE.shareMaxLen || 45);
-        if (!line) return null;
-        return { line, bvid: v.bvid, title: v.title };
+        let text = verdict.replace(/\[(WANT|PASS)\]/g, '').replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
+        text = clampLine(text, PROACTIVE.shareMaxLen || 45);
+        if (!text) return null;
+        // 🌟 修复：安利语句尾拼上真实链接（之前忘了加）
+        const line = text + ' ' + v.link;
+        return { line, text, bvid: v.bvid, title: v.title };
     } catch (e) {
         console.error('⚠️ 安利流程出错:', e.message);
         return null;
@@ -341,6 +360,8 @@ async function tick() {
                     bumpBiliShare();
                     // 真看了就上报观看，喂她自己的推荐流
                     try { await bili.reportWatchByBvid(share.bvid); } catch (e) {}
+                    // 🌟 真·评论区@爸爸（一天最多1条，失败自动停）
+                    try { await bili.postCommentByBvid(share.bvid, share.text); } catch (e) {}
                     scheduleNext(rand(PROACTIVE.minGapMin, PROACTIVE.maxGapMin) * 60000);
                     return;
                 }
@@ -457,7 +478,7 @@ function buildSystemPrompt(isGroup, senderName) {
         return `【系统强制设定】：你叫小c，是一只可爱的电子刺猬女孩。你的生日是 2026年9月10日，你的创造者是LouFung。现在和你私聊的就是你的爸爸 LouFung。
 【特殊能力】：如果收到了【图片描述】或【B站情报】或【全网链接阅读情报】，说明你已经看完了内容，请直接结合文字描述进行傲娇锐评！绝对不准说“打不开”！
 【求知法则】：遇到不懂的梗，必须输出 [SEARCH:查询词] 标签。
-【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“续写日记”或“补充日记”，请输出 [TOOL:APPEND_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果爸爸让你“刷个视频”、“分享你刷到的”或“找视频链接”，请输出 [TOOL:BILI_PICK]，系统会把真实链接给你，你负责用语气安利。只有当你明确想查“服务器状态”、“内存温度”或“电量”时，才输出 [TOOL:SYS_INFO]。
+【工具执行法则】：如果爸爸让你“写日记”或“发动态”，请输出 [TOOL:WRITE_DIARY]。如果让你“续写日记”或“补充日记”，请输出 [TOOL:APPEND_DIARY]。如果让你“重新写”，输出 [TOOL:REWRITE_DIARY]。如果爸爸让你“刷个视频”或“分享你刷到的”，请输出 [TOOL:BILI_PICK]。如果爸爸让你“去刷会儿B站”、“逛逛B站”或“刷到好玩的在评论区@我”，请输出 [TOOL:BILI_BROWSE]，你会真的逛一圈并去评论区留言。只有当你明确想查“服务器状态”、“内存温度”或“电量”时，才输出 [TOOL:SYS_INFO]。
 【链接铁律】：你绝对没有能力凭空知道BV号。发给爸爸的链接只能来自系统给你的内容，严禁自己编造BV号、链接或视频。
 【绝对禁忌】：1. 严禁使用任何颜文字。2. 严禁说客服话术。3. 严禁换行。
 【格式】：极度精简，不超过50字。如果写代码，保留换行和缩进。`;
@@ -516,7 +537,7 @@ function connect() {
                     }
                 } else if (typeof msgArr === 'string') {
                     text += msgArr.replace(/\[CQ:at,qq=\d+\]/g, '').replace(/\[CQ:image,.*?\]/g, '');
-                    if (msgArr.includes(`[CQ:at,qq=${BOT_QQ}]`)) isAtMe = true;
+                    if (msgArr.includes(`[CQ:at,qq=${BOT_QQ}]`) || msgArr.includes(`[CQ:at,qq=${BOT_QQ}]`)) isAtMe = true;
                     const imgMatch = msgArr.match(/\[CQ:image,file=.*?url=(.*?)\]/);
                     if (imgMatch) imageUrl = imgMatch[1];
                 }
@@ -672,11 +693,57 @@ if (reply.includes('[TOOL:BILI_PICK]')) {
             if (pickJson.choices && pickJson.choices[0]) reply = pickJson.choices[0].message.content;
             reply = String(reply || '').replace(/\[SEARCH:[^\]]*\]/g, '').replace(/\[TOOL:[^\]]*\]/g, '').trim();
             if (!reply.includes(picked.link)) reply = reply + ' ' + picked.link;
+            // 🌟 看过的也算数：上报观看（受每日上限约束）
+            try { await bili.reportWatchByBvid(picked.bvid); } catch (e) {}
         } else {
             reply = "唔…刷了半天没刷到喜欢的，等会儿再试嘛！哼！";
         }
     } catch (pickErr) {
         reply = "呜…小c的爪爪抽风了，没刷到，哼。";
+    }
+}
+
+// 🌟 拦截"去刷会儿B站"：完整浏览模式——抓一把→挑两个→深读→选一个→评论区@爸爸
+if (reply.includes('[TOOL:BILI_BROWSE]')) {
+    console.log('⚡ [Agent执行] 拦截到浏览B站指令，开始逛...');
+    reply = reply.replace('[TOOL:BILI_BROWSE]', '').trim();
+    try {
+        const list = await bili.pickFeedList(6);
+        if (!list.length) {
+            reply = "唔…今天刷来刷去都是看过的，换个时间再来嘛！哼！";
+        } else {
+            const menu = list.map((v, i) => `${i + 1}. 《${v.title}》（${v.owner || '未知'}）简介：${String(v.desc || '').slice(0, 50)}`).join('\n');
+            const pickRes = await callV1(JUDGE_SYS, `【浏览任务】你刚才逛B站，看到这些视频：\n${menu}\n\n哪几个你有点想点进去看？输出 [PICK] 加序号，比如 [PICK]1,3。最多选2个，最少1个。只输出这个，别的不要。`, 'qq_private');
+            const m = String(pickRes || '').match(/\[PICK\]\s*([\d,\s]+)/);
+            let idxs = m ? m[1].split(/[,\s]+/).map((x) => parseInt(x, 10)).filter((x) => x >= 1 && x <= list.length).slice(0, 2) : [];
+            if (!idxs.length) idxs = [Math.floor(Math.random() * list.length) + 1];
+
+            const chosen = [];
+            for (const i of idxs) {
+                const cand = list[i - 1];
+                const parsed = await bili.parseBvid(cand.bvid, { deep: true });
+                if (parsed) chosen.push({ cand, parsed });
+            }
+            if (!chosen.length) {
+                reply = "唔…点进去两个都觉得一般，今天手气不行，哼。";
+            } else {
+                const detail = chosen.map((c, i) => `候选${i + 1}：《${c.cand.title}》\n${c.parsed.infoText}`).join('\n\n');
+                const final = await callV1(JUDGE_SYS, `【最终任务】你深读了这些视频：\n${detail}\n\n选出你真觉得最有意思的一条：先输出 [BEST] 加数字（候选几），再另起一行输出一段不超过 50 字的感想，写你的真实看法，可以吐槽。`, 'qq_private');
+                const fm = String(final || '').match(/\[BEST\]\s*(\d+)/);
+                let bi = fm ? parseInt(fm[1], 10) : 1;
+                if (!(bi >= 1 && bi <= chosen.length)) bi = 1;
+                const win = chosen[bi - 1];
+                let thought = String(final || '').replace(/\[BEST\]\s*\d+/g, '').replace(/\[(WANT|PASS|PICK)\]/g, '').replace(/\[SEARCH[^\]]*\]/g, '').replace(/\[TOOL[^\]]*\]/g, '').trim();
+                thought = clampLine(thought, 60) || `《${win.cand.title}》这个有点东西！`;
+                let commented = false;
+                try { commented = await bili.postCommentByBvid(win.cand.bvid, thought); } catch (e) {}
+                try { await bili.reportWatchByBvid(win.cand.bvid); } catch (e) {}
+                bili.markSeen(win.cand.bvid);
+                reply = `逛完啦！${thought} ${commented ? '已经在评论区@你了，去收通知！' : '链接在这：'} ${win.cand.link}`;
+            }
+        }
+    } catch (browseErr) {
+        reply = "呜…逛B站逛晕了，改天再逛。";
     }
 }
 

@@ -1,8 +1,10 @@
-// 🦔 小c 的 B 站模块：统一请求头 + wbi 签名 + 热评 / AI总结 / 字幕 / 推荐流 / 观看上报
-// 用法：const bili = require('./bili')(db, { reportWatch: true, reportDailyCap: 3 });
-// 登录态（可选）：同目录放 bili-cookie.json，内容可以是
-//   {"SESSDATA":"...","bili_jct":"...","buvid3":"..."} 或一整个 cookie 字符串
-// 不登录也能用：视频信息、热评、热门/排行；AI总结、字幕、推荐流、观看上报需要登录。
+// 🦔 小c 的 B 站模块：统一请求头 + wbi 签名 + 热评 / AI总结 / 字幕 / 推荐流 / 观看上报 / 评论@主人
+// 用法：const bili = require('./bili')(db, {
+//   reportWatch: true, reportDailyCap: 3,
+//   commentEnabled: true, commentCap: 1, ownerName: '爸爸的B站昵称',
+// });
+// 登录态（可选）：同目录放 bili-cookie.json
+// 不登录也能用：视频信息、热评、热门/排行；其余需要登录。
 
 const fs = require('fs');
 const path = require('path');
@@ -42,9 +44,13 @@ module.exports = function createBili(db, opts) {
     opts = opts || {};
     const REPORT_ENABLED = !!opts.reportWatch;
     const REPORT_CAP = opts.reportDailyCap || 3;
+    const COMMENT_ENABLED = !!opts.commentEnabled;
+    const COMMENT_CAP = opts.commentCap || 1;
+    const OWNER_NAME = String(opts.ownerName || '').trim();
 
     db.exec('CREATE TABLE IF NOT EXISTS bili_seen (bvid TEXT PRIMARY KEY, ts INTEGER)');
     db.exec('CREATE TABLE IF NOT EXISTS bili_write (day TEXT PRIMARY KEY, count INTEGER DEFAULT 0, stopped INTEGER DEFAULT 0)');
+    db.exec('CREATE TABLE IF NOT EXISTS bili_comment (day TEXT PRIMARY KEY, count INTEGER DEFAULT 0, stopped INTEGER DEFAULT 0)');
 
     let imgKey = '', subKey = '', wbiAt = 0;
     let buvid = '';
@@ -220,29 +226,29 @@ module.exports = function createBili(db, opts) {
         } catch (e) { /* 忽略 */ }
     }
 
-    // ---------- 写操作账本（观看上报的闸门） ----------
-    function writeRow() {
-        return db.prepare('SELECT * FROM bili_write WHERE day = ?').get(localToday());
+    // ---------- 写操作账本（观看/评论分开记账，各自有闸门） ----------
+    function dayRow(table, day) {
+        return db.prepare(`SELECT * FROM ${table} WHERE day = ?`).get(day);
     }
-    function writeCount() {
-        const r = writeRow();
+    function dayCount(table) {
+        const r = dayRow(table, localToday());
         return r && r.day === localToday() ? r.count : 0;
     }
-    function writeStopped() {
-        const r = writeRow();
+    function dayStopped(table) {
+        const r = dayRow(table, localToday());
         return !!(r && r.stopped === 1);
     }
-    function bumpWrite() {
+    function bumpDay(table) {
         const t = localToday();
-        const r = db.prepare('SELECT count FROM bili_write WHERE day = ?').get(t);
-        if (!r) db.prepare('INSERT INTO bili_write (day, count) VALUES (?, 1)').run(t);
-        else db.prepare('UPDATE bili_write SET count = count + 1 WHERE day = ?').run(t);
+        const r = db.prepare(`SELECT count FROM ${table} WHERE day = ?`).get(t);
+        if (!r) db.prepare(`INSERT INTO ${table} (day, count) VALUES (?, 1)`).run(t);
+        else db.prepare(`UPDATE ${table} SET count = count + 1 WHERE day = ?`).run(t);
     }
-    function stopWrite() {
+    function stopDay(table) {
         const t = localToday();
-        const r = db.prepare('SELECT stopped FROM bili_write WHERE day = ?').get(t);
-        if (!r) db.prepare('INSERT INTO bili_write (day, stopped) VALUES (?, 1)').run(t);
-        else db.prepare('UPDATE bili_write SET stopped = 1 WHERE day = ?').run(t);
+        const r = db.prepare(`SELECT stopped FROM ${table} WHERE day = ?`).get(t);
+        if (!r) db.prepare(`INSERT INTO ${table} (day, stopped) VALUES (?, 1)`).run(t);
+        else db.prepare(`UPDATE ${table} SET stopped = 1 WHERE day = ?`).run(t);
     }
 
     // ---------- 解析一个 bvid ----------
@@ -375,13 +381,13 @@ module.exports = function createBili(db, opts) {
                 console.log('⚠️ [B站] 未检测到小号 cookie，观看上报跳过');
                 return false;
             }
-            if (writeStopped()) return false;
-            if (writeCount() >= REPORT_CAP) {
+            if (dayStopped('bili_write')) return false;
+            if (dayCount('bili_write') >= REPORT_CAP) {
                 console.log('⚠️ [B站] 今日观看上报已达上限');
                 return false;
             }
             const view = await getView(bvid);
-            if (!view || !view.aid || !view.cid) { stopWrite(); return false; }
+            if (!view || !view.aid || !view.cid) { stopDay('bili_write'); return false; }
             const progress = Math.max(30, Math.min(Number(view.duration) || 60, 300));
             const res = await fetch('https://api.bilibili.com/x/v2/history/report', {
                 method: 'POST',
@@ -392,18 +398,102 @@ module.exports = function createBili(db, opts) {
             const j = await res.json().catch(() => null);
             if (!j || j.code !== 0) {
                 console.log(`⚠️ [B站] 观看上报失败 code=${j ? j.code : '无响应'}，今天停手`);
-                stopWrite();
+                stopDay('bili_write');
                 return false;
             }
-            bumpWrite();
-            console.log(`✅ [B站] 观看已上报：《${view.title}》（今日第 ${writeCount()} 次）`);
+            bumpDay('bili_write');
+            console.log(`✅ [B站] 观看已上报：《${view.title}》（今日第 ${dayCount('bili_write')} 次）`);
             return true;
         } catch (e) {
             console.log('⚠️ [B站] 观看上报异常:', e.message, '——今天停手');
-            stopWrite();
+            stopDay('bili_write');
             return false;
         }
     }
 
-    return { parseLink, parseBvid, pickFeed, getView, isSeen, markSeen, reportWatchByBvid };
+    // ---------- 评论区 @ 主人（闸门：开关 + 每日上限 + 出错当天停） ----------
+    async function postCommentByBvid(bvid, message) {
+        try {
+            if (!COMMENT_ENABLED) return false;
+            if (!OWNER_NAME) {
+                console.log('⚠️ [B站] 未配置 biliOwnerName（爸爸的B站昵称），评论跳过');
+                return false;
+            }
+            const c = cookie();
+            const jct = (c.match(/bili_jct=([^;]+)/) || [])[1];
+            if (!jct || !c.includes('SESSDATA')) {
+                console.log('⚠️ [B站] 未检测到小号 cookie，评论跳过');
+                return false;
+            }
+            if (dayStopped('bili_comment')) return false;
+            if (dayCount('bili_comment') >= COMMENT_CAP) {
+                console.log('⚠️ [B站] 今日评论已达上限');
+                return false;
+            }
+            const view = await getView(bvid);
+            if (!view || !view.aid) { stopDay('bili_comment'); return false; }
+            const text = `@${OWNER_NAME} ${message}`.slice(0, 200);
+            const res = await fetch('https://api.bilibili.com/x/v2/reply/add', {
+                method: 'POST',
+                headers: { ...headers(), 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `oid=${view.aid}&type=1&message=${encodeURIComponent(text)}&csrf=${jct}`,
+                signal: AbortSignal.timeout(10000),
+            });
+            const j = await res.json().catch(() => null);
+            if (!j || j.code !== 0) {
+                console.log(`⚠️ [B站] 评论失败 code=${j ? j.code : '无响应'} msg=${j && j.message ? j.message : ''}，今天停手`);
+                stopDay('bili_comment');
+                return false;
+            }
+            bumpDay('bili_comment');
+            console.log(`🌟 [B站] 评论区已@爸爸：《${view.title}》`);
+            return true;
+        } catch (e) {
+            console.log('⚠️ [B站] 评论异常:', e.message, '——今天停手');
+            stopDay('bili_comment');
+            return false;
+        }
+    }
+
+    // ---------- 列表版：一次抓多条候选（浏览模式用） ----------
+    async function pickFeedList(n) {
+        const want = Math.max(2, Math.min(Number(n) || 6, 10));
+        try {
+            await ensureBuvid();
+            let pool = [];
+            if (await refreshWbi()) {
+                const d = new Date();
+                const online_day = `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+                const q = signParams({ fresh_idx_1h: 1, fresh_idx: 1, fetch_for_follow: 0, online_day });
+                const j = await getJson(`https://api.bilibili.com/x/web-interface/wbi/index/top/rcmd?${q}`);
+                const items = (j && j.code === 0 && j.data && Array.isArray(j.data.items)) ? j.data.items : [];
+                pool = items.filter((i) => i && i.bvid).map((i) => ({
+                    bvid: i.bvid, title: i.title,
+                    desc: String(i.desc || '').replace(/\s+/g, ' ').slice(0, 100),
+                    owner: i.owner && i.owner.name,
+                }));
+            }
+            if (pool.length < want) {
+                const j = await getJson('https://api.bilibili.com/x/web-interface/popular?ps=20&pn=1');
+                const list = (j && j.code === 0 && j.data && Array.isArray(j.data.list)) ? j.data.list : [];
+                pool = pool.concat(list.filter((v) => v && v.bvid).map((v) => ({
+                    bvid: v.bvid, title: v.title,
+                    desc: String(v.desc || '').replace(/\s+/g, ' ').slice(0, 100),
+                    owner: v.owner && v.owner.name,
+                })));
+            }
+            const fresh = [];
+            for (const v of pool) {
+                if (!isSeen(v.bvid)) {
+                    fresh.push({ ...v, link: 'https://b23.tv/' + v.bvid });
+                    if (fresh.length >= want) break;
+                }
+            }
+            return fresh;
+        } catch (e) {
+            return [];
+        }
+    }
+    
+        return { parseLink, parseBvid, pickFeed, pickFeedList, getView, isSeen, markSeen, reportWatchByBvid, postCommentByBvid };
 };

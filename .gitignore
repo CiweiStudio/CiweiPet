@@ -9,3 +9,4 @@ db/ciwei.db
 .turnstile-secret
 *.bak
 node_modules/
+bili-cookie.json
