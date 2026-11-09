@@ -433,7 +433,7 @@ function generateDiaryForToday(force = false) {
             if (existing) return;
         }
 
-        const recentMsgs = db.prepare("SELECT role, content, source FROM messages ORDER BY id DESC LIMIT 50").all();
+        const recentMsgs = db.prepare("SELECT role, content, source FROM messages WHERE source = 'web' OR source = 'qq_private' ORDER BY id DESC LIMIT 50").all();
         if (recentMsgs.length === 0) return;
 
         let historyText = recentMsgs.reverse().map(m => {
@@ -448,7 +448,7 @@ function generateDiaryForToday(force = false) {
 
         const timeStr = now.toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' });
 
-        const prompt = `现在是【${timeStr}】。你叫小c，是一只电子刺猬女孩。${moodDesc}。这是你最近和爸爸的聊天记录：\n${historyText}\n\n请根据这些记录，用第一视角写一篇简短的日记（100字左右），开头必须带上今天的真实日期，不要markdown。`;
+        const prompt = `现在是【${timeStr}】。你叫小c，是一只电子刺猬女孩。${moodDesc}。这是你最近和爸爸的聊天记录：\n${historyText}\n\n【绝对禁忌】：日记里只能出现你和爸爸的事情！如果记录里出现了群友的话或者群聊内容，请立刻无视，绝对不准写进日记里！\n请根据这些记录，用第一视角写一篇简短的日记（100字左右），开头必须带上今天的真实日期，不要markdown。`;
 
         let apiConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
         let provider = apiConfig.providers[0];
