@@ -34,13 +34,13 @@ const PROACTIVE = {
     nightEnd: '08:00',
     // 🛰️ B站安利
     biliShare: true,        // 她"刷到好东西来安利你"总开关
-    biliShareChance: 0.25,  // 每次到点，多大概率走安利流程
-    biliShareCap: 2,        // 每天最多真安利几条（PASS 不占额度）
+    biliShareChance: 0.5,  // 每次到点，多大概率走安利流程
+    biliShareCap: 5,        // 每天最多真安利几条（PASS 不占额度）
     shareMaxLen: 45,        // 安利语长度
     biliReport: true,       // 观看上报（喂她的推荐流）
     // 🌟 评论区@爸爸
     biliComment: true,      // 真·在B站评论区@你（一天最多1条）
-    biliCommentCap: 1,      // 每天最多评论几条
+    biliCommentCap: 3,      // 每天最多评论几条
     biliOwnerName: 'LouFoong',      // ← 【填这里】你的B站昵称，一字不差！不填就不评论
 };
 

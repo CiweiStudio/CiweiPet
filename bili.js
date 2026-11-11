@@ -197,7 +197,7 @@ module.exports = function createBili(db, opts) {
         const full = url.startsWith('//') ? 'https:' + url : url;
         const s = await getJson(full);
         if (!s || !Array.isArray(s.body)) return '';
-        return s.body.map((x) => x.content).join('').slice(0, 1200);
+        return s.body.map((x) => x.content).join('').slice(0, 2500); 
     }
 
     async function getDanmaku(cid) {
@@ -208,7 +208,7 @@ module.exports = function createBili(db, opts) {
             });
             const txt = await res.text();
             const list = txt.match(/<d p="[^"]*">([^<]*)<\/d>/g) || [];
-            return list.slice(0, 20).map((d) => d.replace(/<[^>]+>/g, '')).filter(Boolean);
+            return list.slice(0, 50).map((d) => d.replace(/<[^>]+>/g, '')).filter(Boolean); 
         } catch (e) {
             return [];
         }
@@ -388,7 +388,8 @@ module.exports = function createBili(db, opts) {
             }
             const view = await getView(bvid);
             if (!view || !view.aid || !view.cid) { stopDay('bili_write'); return false; }
-            const progress = Math.max(30, Math.min(Number(view.duration) || 60, 300));
+            // 🚀 解开5分钟封印：直接上报视频总时长（伪装成从头看到尾），哪怕2小时的长视频也敢报！
+const progress = Math.max(30, Number(view.duration) || 60);
             const res = await fetch('https://api.bilibili.com/x/v2/history/report', {
                 method: 'POST',
                 headers: { ...headers(), 'Content-Type': 'application/x-www-form-urlencoded' },
