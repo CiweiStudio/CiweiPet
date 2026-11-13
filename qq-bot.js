@@ -3,9 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 
+require('dotenv').config(); // 🌟 加载环境变量
+
 const wsUrl = 'ws://127.0.0.1:6200'; 
-const MY_QQ = 2586279833; 
-const BOT_QQ = 1262884085; 
+const MY_QQ = process.env.MY_QQ; 
+const BOT_QQ = process.env.BOT_QQ; 
 
 let reconnectTimer = null;
 let ws = null;

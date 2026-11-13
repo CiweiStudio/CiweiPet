@@ -1,3 +1,4 @@
+require('dotenv').config();
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -474,7 +475,7 @@ function generateDiaryForToday(force = false) {
                     wsDiary.onopen = () => {
                         wsDiary.send(JSON.stringify({
                             action: 'send_private_msg',
-                            params: { user_id: 2586279833, message: qqMsg },
+                            params: { user_id: process.env.MY_QQ, message: qqMsg },
                             echo: 'send_diary'
                         }));
                         wsDiary.send(JSON.stringify({

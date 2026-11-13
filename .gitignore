@@ -10,3 +10,4 @@ db/ciwei.db
 *.bak
 node_modules/
 bili-cookie.json
+.env
