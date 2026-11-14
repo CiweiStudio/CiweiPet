@@ -1,5 +1,5 @@
 {
-  "name": "ciwei-server",
+  "name": "civebot",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
@@ -8,19 +8,25 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "description": "",
+  "description": "CiveBot - 运行在红米手机上的端云协同 AI Agent (小c)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CiweiStudio/CiweiPet.git"
+    "url": "git+https://github.com/CiveStudio/CiveBot.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "ai-agent",
+    "llm",
+    "qq-bot",
+    "termux",
+    "llama-cpp"
+  ],
+  "author": "LouFung & 小c",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/CiweiStudio/CiweiPet/issues"
+    "url": "https://github.com/CiveStudio/CiveBot/issues"
   },
-  "homepage": "https://github.com/CiweiStudio/CiweiPet#readme",
+  "homepage": "https://github.com/CiveStudio/CiveBot#readme",
   "dependencies": {
     "dotenv": "^18.0.10",
     "mammoth": "^1.13.0",
