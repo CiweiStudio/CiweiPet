@@ -64,25 +64,25 @@
     function fillTemplate(text) { return text.replace(/{name}/g, PET_PROFILE.name).replace(/{developer}/g, PET_PROFILE.developer).replace(/{birthday}/g, formatBirthday(PET_PROFILE.birthday)).replace(/{ipLine}/g, PET_PROFILE.ipLine).replace(/{days}/g, getDaysSinceBirth()); }
 
     var host = document.createElement('div');
-    host.id = 'ciwei-pet';
+    host.id = 'civebot';
     host.innerHTML = '<div class="cp-bubble"></div><div class="cp-toolbar"><button class="cp-toolbar-btn" data-action="love"  title="摸摸头">❤️</button><button class="cp-toolbar-btn" data-action="food"  title="喂食">🍎</button><button class="cp-toolbar-btn" data-action="dialogue" title="聊天">💬</button><button class="cp-toolbar-btn" data-action="sleep" title="哄睡">💤</button><button class="cp-toolbar-btn" data-action="reset" title="归位">🏠</button></div><div class="cp-body"><div class="cp-tilt"><img class="cp-img" alt="小c" draggable="false"><div class="cp-light"></div></div><div class="cp-shadow"></div><div class="cp-zzz">💤</div></div>';
 
-    var particleLayer = document.createElement('div'); particleLayer.id = 'ciwei-pet-particles';
+    var particleLayer = document.createElement('div'); particleLayer.id = 'civebot-particles';
 
     // 🌟 菜单重组：把 history 移入 more，把 journal 提上来
-    var menu = document.createElement('div'); menu.id = 'ciwei-pet-menu';
+    var menu = document.createElement('div'); menu.id = 'civebot-menu';
     menu.innerHTML = '<div class="cp-mi" data-menu="love"     data-label="摸摸头">❤️</div><div class="cp-mi" data-menu="food"     data-label="喂食">🍎</div><div class="cp-mi" data-menu="dialogue" data-label="聊天">💬</div><div class="cp-mi" data-menu="sleep"    data-label="哄睡">💤</div><div class="cp-mi" data-menu="spin"     data-label="转圈">🔄</div><div class="cp-mi" data-menu="journal"  data-label="偷看日记">📖</div><div class="cp-mi" data-menu="more"     data-label="更多">⚙️</div>';
 
-    var submenu = document.createElement('div'); submenu.id = 'ciwei-pet-submenu';
+    var submenu = document.createElement('div'); submenu.id = 'civebot-submenu';
     submenu.innerHTML = '<div class="cp-sub-item" data-menu="roam">🚶 <span>散散步</span></div><div class="cp-sub-item" data-menu="reset">🏠 <span>回角落</span></div><div class="cp-sep"></div><div class="cp-sub-item" data-menu="scale-up">🔍➕ <span>放大</span></div><div class="cp-sub-item" data-menu="scale-down">🔍➖ <span>缩小</span></div><div class="cp-sub-item" data-menu="scale-reset">📏 <span>重置大小</span><span class="cp-sub-check" id="cp-scale-check">100%</span></div><div class="cp-sep"></div><div class="cp-sub-item active" data-menu="sound">🔊 <span>音效</span><span class="cp-sub-check" id="cp-sound-check">开启</span></div><div class="cp-sub-item" data-menu="history">📜 <span>历史记录</span></div><div class="cp-sub-item" data-menu="usage">💰 <span>消费统计</span></div><div class="cp-sep"></div><div class="cp-sub-item danger" data-menu="hide">🙈 <span>隐藏</span></div>';
 
-    var dialogue = document.createElement('div'); dialogue.id = 'ciwei-pet-dialogue';
+    var dialogue = document.createElement('div'); dialogue.id = 'civebot-dialogue';
     dialogue.innerHTML = '<div class="cp-dlg-header" style="position: relative !important;"><span class="cp-dlg-title">💬 和小c聊天</span><button class="cp-dlg-close" id="cp-dlg-close" style="position: absolute !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; background: transparent !important; border: none !important; color: var(--cp-panel-text-muted) !important; cursor: pointer !important; font-size: 16px !important;">✕</button></div><div id="cp-file-tip" style="display:none; font-size:12px; color:#58a6ff; padding: 6px 12px 0; font-weight:bold;"></div><div id="cp-dlg-body"></div><div class="cp-dlg-input-area" style="align-items: flex-end;"><button id="cp-upload-btn" style="background:transparent; border:none; color:var(--cp-panel-text-muted); font-size:16px; padding:6px; cursor:pointer;" title="上传文件或图片">📎</button><input type="file" id="cp-file-input" accept=".txt,.md,.pdf,.docx,image/*" style="display:none;"><textarea class="cp-dlg-input" id="cp-dlg-input" placeholder="打字问我…" autocomplete="off" rows="1" style="resize: none !important; -webkit-appearance: none; outline: none; box-sizing: border-box; min-height: 40px; max-height: 100px; overflow-y: hidden;"></textarea><button class="cp-dlg-send" id="cp-dlg-send" style="height:40px;">发送</button></div>';
 
-    var usagePanel = document.createElement('div'); usagePanel.id = 'ciwei-pet-usage-panel';
+    var usagePanel = document.createElement('div'); usagePanel.id = 'civebot-usage-panel';
     usagePanel.innerHTML = '<div class="cp-usage-header"><span class="cp-usage-title">💰 消费统计</span><button class="cp-usage-close" id="cp-usage-close">✕</button></div><div class="cp-usage-body" id="cp-usage-body"></div>';
 
-    var restoreBtn = document.createElement('div'); restoreBtn.id = 'ciwei-pet-restore'; restoreBtn.textContent = '🦔';
+    var restoreBtn = document.createElement('div'); restoreBtn.id = 'civebot-restore'; restoreBtn.textContent = '🦔';
 
     // ================= 核心面板 =================
     
@@ -290,7 +290,7 @@
     function stopStruggle() { clearInterval(S.struggleTimer); S.struggleTimer = null; if (!S.sleeping) setImage('idle1'); }
 
     function onDown(e, isTouch) {
-        if (e.target.closest('.cp-toolbar') || e.target.closest('#ciwei-pet-menu') || e.target.closest('#ciwei-pet-submenu') || e.target.closest('#ciwei-pet-dialogue') || e.target.closest('.cp-bubble')) return;
+        if (e.target.closest('.cp-toolbar') || e.target.closest('#civebot-menu') || e.target.closest('#civebot-submenu') || e.target.closest('#civebot-dialogue') || e.target.closest('.cp-bubble')) return;
         if (e.button && e.button !== 0) return; initAudio(); S.dragging = true; S.moved = false; S.longPressed = false; S.thrown = false; host.classList.add('dragging'); host.classList.remove('idle-float', 'animating'); var p = e.touches ? e.touches[0] : e; S.sClientX = p.clientX; S.sClientY = p.clientY; S.sPosX = S.x; S.sPosY = S.y; S.vx = 0; S.vy = 0; S.lastMoveX = p.clientX; S.lastMoveY = p.clientY; S.lastMoveTime = performance.now(); if (!S.sleeping) startStruggle(); clearTimeout(S.longPressTimer);
         if (isTouch) { S.longPressTimer = setTimeout(function () { if (!S.moved && S.dragging) { S.longPressed = true; S.dragging = false; host.classList.remove('dragging'); host.classList.add('idle-float'); stopStruggle(); lastLongPressTime = performance.now(); if (navigator.vibrate) { try { navigator.vibrate(25); } catch (err) {} } showMenuAt(S.sClientX, S.sClientY); } }, LONG_PRESS_MS); }
         e.preventDefault();
@@ -310,7 +310,7 @@
     host.addEventListener('mousedown', function (e) { onDown(e, false); }); host.addEventListener('touchstart', function (e) { onDown(e, true); }, { passive: false }); document.addEventListener('mousemove', onMove, { passive: false }); document.addEventListener('mouseup', onUp); document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp); img.addEventListener('dragstart', function (e) { e.preventDefault(); });
 
     var lastTap = 0; host.addEventListener('click', function (e) { if (S.moved) return; var now = performance.now(); if (now - lastTap < 300) { e.stopPropagation(); doSpin(); lastTap = 0; } else { lastTap = now; } });
-    document.addEventListener('dblclick', function (e) { if (e.target.closest('#ciwei-pet') || e.target.closest('#ciwei-pet-menu') || e.target.closest('#ciwei-pet-submenu') || e.target.closest('#ciwei-pet-dialogue') || e.target.closest('#ciwei-pet-restore') || e.target.closest('a, button, input, textarea, select, label') || e.target.closest('[class*="modal"]')) return; if (S.sleeping) return; walkTo(e.clientX - getSize() / 2, e.clientY - getSize() / 2); });
+    document.addEventListener('dblclick', function (e) { if (e.target.closest('#civebot') || e.target.closest('#civebot-menu') || e.target.closest('#civebot-submenu') || e.target.closest('#civebot-dialogue') || e.target.closest('#civebot-restore') || e.target.closest('a, button, input, textarea, select, label') || e.target.closest('[class*="modal"]')) return; if (S.sleeping) return; walkTo(e.clientX - getSize() / 2, e.clientY - getSize() / 2); });
 
     var lastFrame = performance.now();
     function mainLoop(now) {
@@ -490,7 +490,7 @@
         if (act === 'roam') { doRoam(); submenu.classList.remove('show'); menu.classList.remove('show'); } else if (act === 'reset') { doReset(); submenu.classList.remove('show'); menu.classList.remove('show'); } else if (act === 'hide') { doHide(); submenu.classList.remove('show'); menu.classList.remove('show'); } else if (act === 'scale-up') { doScaleUp(); } else if (act === 'scale-down') { doScaleDown(); } else if (act === 'scale-reset') { doScaleReset(); } else if (act === 'usage') { submenu.classList.remove('show'); menu.classList.remove('show'); setTimeout(openUsagePanel, 60); } else if (act === 'history') { submenu.classList.remove('show'); menu.classList.remove('show'); setTimeout(openHistory, 60); } else if (act === 'sound') { S.soundOn = !S.soundOn; saveSound(); soundChk.textContent = S.soundOn ? '开启' : '关闭'; item.classList.toggle('active', S.soundOn); if (S.soundOn) { initAudio(); SFX.pet(); } }
     });
 
-    document.addEventListener('click', function (e) { if (performance.now() - lastLongPressTime < 600) return; var inMenu = e.target.closest('#ciwei-pet-menu'); var inSub = e.target.closest('#ciwei-pet-submenu'); var inPet = e.target.closest('#ciwei-pet'); if (!inMenu && !inSub && !inPet) { menu.classList.remove('show'); submenu.classList.remove('show'); } });
+    document.addEventListener('click', function (e) { if (performance.now() - lastLongPressTime < 600) return; var inMenu = e.target.closest('#civebot-menu'); var inSub = e.target.closest('#civebot-submenu'); var inPet = e.target.closest('#civebot'); if (!inMenu && !inSub && !inPet) { menu.classList.remove('show'); submenu.classList.remove('show'); } });
 
     function checkBirthday() { var today = new Date(); var md = ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2); if (md === PET_PROFILE.birthday.slice(5)) { setTimeout(function () { if (S.sleeping || S.hidden) return; showBubble(pick(MSG.birthday), 4000, false); burst('🎂', 10); burst('🎉', 6); SFX.wake(); }, 3000); } }
     function checkSpecialDay() { var today = new Date(); if (today.getMonth() + 1 !== 12 || today.getDate() !== 26) return; setTimeout(function () { if (S.sleeping || S.hidden) return; showBubble('🎂 今天是特别的日子…有人托我说一声：生日快乐。', 5000, false, true); TTS.speak('生日快乐'); setFace('happy', 3000); burst('🎂', 8); burst('💝', 6); burst('🎉', 6); SFX.wake(); }, 3000); }

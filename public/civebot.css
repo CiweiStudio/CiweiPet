@@ -3,13 +3,13 @@
    含：深浅色适配 · 光晕弱化 · 横排菜单 · 对话面板 · AI 设置 · 输入框
 ================================================================ */
 
-#ciwei-pet, #ciwei-pet *,
-#ciwei-pet-menu, #ciwei-pet-menu *,
-#ciwei-pet-submenu, #ciwei-pet-submenu *,
-#ciwei-pet-dialogue, #ciwei-pet-dialogue *,
-#ciwei-pet-ai-settings, #ciwei-pet-ai-settings *,
-#ciwei-pet-particles, #ciwei-pet-particles *,
-#ciwei-pet-restore { box-sizing: border-box; }
+#civebot, #civebot *,
+#civebot-menu, #civebot-menu *,
+#civebot-submenu, #civebot-submenu *,
+#civebot-dialogue, #civebot-dialogue *,
+#civebot-ai-settings, #civebot-ai-settings *,
+#civebot-particles, #civebot-particles *,
+#civebot-restore { box-sizing: border-box; }
 
 /* ============================================================
    主题变量 · 浅色（默认）
@@ -93,7 +93,7 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
 /* ============================================================
    宠物容器
 ================================================================ */
-#ciwei-pet {
+#civebot {
     position: fixed; left: 0; top: 0;
     width: var(--cp-size); height: var(--cp-size);
     z-index: 9000;
@@ -106,21 +106,21 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
                 height .35s cubic-bezier(.34,1.56,.64,1);
     font-family: -apple-system, 'PingFang SC', 'Segoe UI', 'Inter', sans-serif;
 }
-#ciwei-pet.ready { opacity: 1; }
-#ciwei-pet.dragging { cursor: grabbing; }
-#ciwei-pet.animating {
+#civebot.ready { opacity: 1; }
+#civebot.dragging { cursor: grabbing; }
+#civebot.animating {
     transition: transform .55s cubic-bezier(.34,1.56,.64,1),
                 opacity .45s, width .35s, height .35s;
 }
-#ciwei-pet.scaling { transition: none; }
-#ciwei-pet.hidden { display: none; }
+#civebot.scaling { transition: none; }
+#civebot.hidden { display: none; }
 
-#ciwei-pet .cp-body {
+#civebot .cp-body {
     position: relative; width: 100%; height: 100%;
     transition: transform .15s ease-out;
     transform-style: preserve-3d;
 }
-#ciwei-pet.idle-float .cp-body {
+#civebot.idle-float .cp-body {
     animation: cp-idleFloat var(--cp-breath) ease-in-out infinite;
 }
 @keyframes cp-idleFloat {
@@ -129,9 +129,9 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     75%      { transform: translateY(-3px) rotate(.8deg); }
 }
 
-#ciwei-pet .cp-body::before { display: none; }
+#civebot .cp-body::before { display: none; }
 
-#ciwei-pet .cp-shadow {
+#civebot .cp-shadow {
     position: absolute;
     bottom: -6px; left: 50%;
     transform: translateX(-50%);
@@ -141,21 +141,21 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     pointer-events: none; z-index: -1;
     transition: all .28s cubic-bezier(.22,1,.36,1);
 }
-#ciwei-pet.dragging .cp-shadow {
+#civebot.dragging .cp-shadow {
     opacity: .12;
     transform: translateX(-50%) scale(1.4);
     bottom: -14px;
 }
-#ciwei-pet.sleeping .cp-shadow { width: 76%; }
+#civebot.sleeping .cp-shadow { width: 76%; }
 
-#ciwei-pet .cp-tilt {
+#civebot .cp-tilt {
     position: relative; width: 100%; height: 100%;
     transform-style: preserve-3d;
     transition: transform var(--cp-tilt) cubic-bezier(.22,1,.36,1);
     z-index: 1;
 }
 
-#ciwei-pet .cp-light {
+#civebot .cp-light {
     position: absolute; inset: -18px;
     border-radius: 50%;
     pointer-events: none; z-index: 2;
@@ -165,9 +165,9 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     opacity: .6;
     transition: opacity .3s;
 }
-#ciwei-pet.sleeping .cp-light { opacity: .2; }
+#civebot.sleeping .cp-light { opacity: .2; }
 
-#ciwei-pet .cp-img {
+#civebot .cp-img {
     width: 100%; height: 100%;
     object-fit: contain;
     filter: drop-shadow(0 5px 14px rgba(0, 0, 0, .2));
@@ -175,10 +175,10 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     transition: filter .22s ease-out;
     -webkit-user-drag: none;
 }
-#ciwei-pet.sleeping .cp-img {
+#civebot.sleeping .cp-img {
     filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .14)) saturate(.85) brightness(.96);
 }
-#ciwei-pet.squash .cp-img {
+#civebot.squash .cp-img {
     animation: cp-squash .42s cubic-bezier(.34,1.56,.64,1);
 }
 @keyframes cp-squash {
@@ -187,7 +187,7 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     60%  { transform: scale(.9, 1.13); }
     100% { transform: scale(1, 1); }
 }
-#ciwei-pet.spin .cp-tilt {
+#civebot.spin .cp-tilt {
     animation: cp-spin .85s cubic-bezier(.34,1.56,.64,1);
 }
 @keyframes cp-spin {
@@ -195,7 +195,7 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     50%  { transform: rotate(180deg) scale(1.1); }
     100% { transform: rotate(360deg) scale(1); }
 }
-#ciwei-pet.sleeping .cp-body {
+#civebot.sleeping .cp-body {
     animation: cp-sleepBreath 4.5s ease-in-out infinite;
 }
 @keyframes cp-sleepBreath {
@@ -203,14 +203,14 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     50%      { transform: scale(1.03) translateY(-2px) rotate(1.5deg); }
 }
 
-#ciwei-pet .cp-zzz {
+#civebot .cp-zzz {
     position: absolute;
     top: -6px; right: -14px;
     font-size: 17px; opacity: 0;
     pointer-events: none; z-index: 2;
     color: var(--cp-zzz-color);
 }
-#ciwei-pet.sleeping .cp-zzz {
+#civebot.sleeping .cp-zzz {
     animation: cp-zzzFloat var(--cp-zzz) ease-out infinite;
 }
 @keyframes cp-zzzFloat {
@@ -221,7 +221,7 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
 }
 
 /* 气泡 */
-#ciwei-pet .cp-bubble {
+#civebot .cp-bubble {
     position: absolute;
     left: 50%; bottom: calc(100% + 10px);
     transform: translateX(-50%) translateY(6px) scale(.9);
@@ -241,14 +241,14 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     border: 1px solid var(--cp-panel-border);
     z-index: 10;
 }
-#ciwei-pet .cp-bubble.show {
+#civebot .cp-bubble.show {
     opacity: 1;
     transform: translateX(-50%) translateY(0) scale(1);
 }
-#ciwei-pet .cp-bubble.long {
+#civebot .cp-bubble.long {
     white-space: normal; word-break: break-word;
 }
-#ciwei-pet .cp-bubble::after {
+#civebot .cp-bubble::after {
     content: '';
     position: absolute;
     bottom: -5px; right: 18px;
@@ -259,27 +259,27 @@ body[data-fps="low"] { --cp-breath: 3.4s; --cp-tilt: .6s; --cp-particle: 1.35s; 
     border-bottom: 1px solid var(--cp-panel-border);
     border-radius: 0 0 2px 0;
 }
-#ciwei-pet.bubble-below .cp-bubble {
+#civebot.bubble-below .cp-bubble {
     bottom: auto; top: calc(100% + 10px);
     border-radius: 4px 14px 14px 14px;
     transform: translateX(-50%) translateY(-6px) scale(.9);
 }
-#ciwei-pet.bubble-below .cp-bubble.show {
+#civebot.bubble-below .cp-bubble.show {
     transform: translateX(-50%) translateY(0) scale(1);
 }
-#ciwei-pet.bubble-below .cp-bubble::after {
+#civebot.bubble-below .cp-bubble::after {
     bottom: auto; top: -5px; right: 18px;
     border: none;
     border-left: 1px solid var(--cp-panel-border);
     border-top: 1px solid var(--cp-panel-border);
     border-radius: 2px 0 0 0;
 }
-body[data-fps="low"] #ciwei-pet .cp-bubble {
+body[data-fps="low"] #civebot .cp-bubble {
     backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 
 /* 工具栏 */
-#ciwei-pet .cp-toolbar {
+#civebot .cp-toolbar {
     position: absolute;
     left: 50%; top: calc(100% + 6px);
     transform: translateX(-50%) translateY(-6px);
@@ -294,22 +294,22 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     transition: all var(--cp-toolbar-t) cubic-bezier(.22,1,.36,1);
     pointer-events: none; z-index: 5;
 }
-#ciwei-pet.show-toolbar .cp-toolbar,
-#ciwei-pet:hover .cp-toolbar {
+#civebot.show-toolbar .cp-toolbar,
+#civebot:hover .cp-toolbar {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
 }
-#ciwei-pet.toolbar-above .cp-toolbar {
+#civebot.toolbar-above .cp-toolbar {
     top: auto; bottom: calc(100% + 6px);
     transform: translateX(-50%) translateY(6px);
 }
-#ciwei-pet.toolbar-above.show-toolbar .cp-toolbar,
-#ciwei-pet.toolbar-above:hover .cp-toolbar {
+#civebot.toolbar-above.show-toolbar .cp-toolbar,
+#civebot.toolbar-above:hover .cp-toolbar {
     transform: translateX(-50%) translateY(0);
 }
 
-#ciwei-pet .cp-toolbar-btn {
+#civebot .cp-toolbar-btn {
     width: 28px; height: 28px;
     border-radius: 50%; border: none;
     background: transparent;
@@ -319,20 +319,20 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     transition: all .18s;
     -webkit-tap-highlight-color: transparent;
 }
-#ciwei-pet .cp-toolbar-btn:hover {
+#civebot .cp-toolbar-btn:hover {
     background: var(--cp-toolbar-btn-hover-bg);
     color: var(--cp-toolbar-btn-hover-color);
     transform: scale(1.18);
 }
-#ciwei-pet .cp-toolbar-btn:active { transform: scale(.85); }
+#civebot .cp-toolbar-btn:active { transform: scale(.85); }
 
 /* 粒子 */
-#ciwei-pet-particles {
+#civebot-particles {
     position: fixed; top: 0; left: 0;
     width: 100%; height: 100%;
     pointer-events: none; z-index: 8999; overflow: hidden;
 }
-#ciwei-pet-particles .cp-particle {
+#civebot-particles .cp-particle {
     position: absolute; pointer-events: none;
     will-change: transform, opacity;
     animation: cp-particleFly var(--cp-particle, 1.15s) cubic-bezier(.22,.61,.36,1) forwards;
@@ -346,7 +346,7 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 }
 
 /* 一级菜单 */
-#ciwei-pet-menu {
+#civebot-menu {
     position: fixed;
     background: var(--cp-panel-bg);
     backdrop-filter: blur(18px);
@@ -361,12 +361,12 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     animation: cp-menuIn .18s cubic-bezier(.22,1,.36,1);
     transform-origin: top left;
 }
-#ciwei-pet-menu.show { display: flex; gap: 2px; }
+#civebot-menu.show { display: flex; gap: 2px; }
 @keyframes cp-menuIn {
     from { opacity: 0; transform: scale(.9) translateY(-6px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
 }
-#ciwei-pet-menu .cp-mi {
+#civebot-menu .cp-mi {
     position: relative;
     width: 38px; height: 38px;
     border-radius: 10px;
@@ -377,14 +377,14 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
-#ciwei-pet-menu .cp-mi:hover {
+#civebot-menu .cp-mi:hover {
     background: var(--cp-panel-hover);
     transform: translateY(-2px);
 }
-#ciwei-pet-menu .cp-mi:active {
+#civebot-menu .cp-mi:active {
     transform: translateY(0) scale(.92);
 }
-#ciwei-pet-menu .cp-mi::after {
+#civebot-menu .cp-mi::after {
     content: attr(data-label);
     position: absolute;
     top: calc(100% + 6px); left: 50%;
@@ -395,12 +395,12 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     white-space: nowrap; opacity: 0;
     pointer-events: none; transition: all .18s; z-index: 1;
 }
-#ciwei-pet-menu .cp-mi:hover::after {
+#civebot-menu .cp-mi:hover::after {
     opacity: 1; transform: translateX(-50%) translateY(0);
 }
 
 /* 二级菜单 */
-#ciwei-pet-submenu {
+#civebot-submenu {
     position: fixed;
     background: var(--cp-panel-bg);
     backdrop-filter: blur(20px);
@@ -416,8 +416,8 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     animation: cp-menuIn .18s cubic-bezier(.22,1,.36,1);
     transform-origin: top left;
 }
-#ciwei-pet-submenu.show { display: block; }
-#ciwei-pet-submenu .cp-sub-item {
+#civebot-submenu.show { display: block; }
+#civebot-submenu .cp-sub-item {
     padding: 8px 12px;
     font-size: 13px;
     color: var(--cp-panel-text);
@@ -427,30 +427,30 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     transition: all .14s;
     user-select: none; white-space: nowrap;
 }
-#ciwei-pet-submenu .cp-sub-item:hover {
+#civebot-submenu .cp-sub-item:hover {
     background: var(--cp-panel-hover);
 }
-#ciwei-pet-submenu .cp-sub-item:active {
+#civebot-submenu .cp-sub-item:active {
     background: var(--cp-panel-active);
     transform: scale(.98);
 }
-#ciwei-pet-submenu .cp-sub-item.danger:hover {
+#civebot-submenu .cp-sub-item.danger:hover {
     background: rgba(239, 68, 68, .16);
     color: #f87171;
 }
-#ciwei-pet-submenu .cp-sub-item .cp-sub-check {
+#civebot-submenu .cp-sub-item .cp-sub-check {
     margin-left: auto; font-size: 11px;
     color: var(--cp-panel-text-muted);
     font-variant-numeric: tabular-nums;
 }
-#ciwei-pet-submenu .cp-sub-item.active .cp-sub-check { color: #58a6ff; }
-#ciwei-pet-submenu .cp-sep {
+#civebot-submenu .cp-sub-item.active .cp-sub-check { color: #58a6ff; }
+#civebot-submenu .cp-sep {
     height: 1px; background: var(--cp-panel-border);
     margin: 4px 8px;
 }
 
 /* 对话面板 */
-#ciwei-pet-dialogue {
+#civebot-dialogue {
     position: fixed;
     background: var(--cp-panel-bg);
     backdrop-filter: blur(30px) saturate(180%);
@@ -469,9 +469,9 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
     transform-origin: top left;
 }
-#ciwei-pet-dialogue.show { display: flex; }
+#civebot-dialogue.show { display: flex; }
 
-#ciwei-pet-dialogue .cp-dlg-header {
+#civebot-dialogue .cp-dlg-header {
     display: flex; align-items: center;
     padding: 7px 10px 8px;
     border-bottom: 1px solid var(--cp-panel-border);
@@ -482,18 +482,18 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     -webkit-user-select: none;
     touch-action: none;
 }
-#ciwei-pet-dialogue .cp-dlg-header.dragging {
+#civebot-dialogue .cp-dlg-header.dragging {
     cursor: grabbing;
 }
-#ciwei-pet-dialogue .cp-dlg-header.dragging ~ * {
+#civebot-dialogue .cp-dlg-header.dragging ~ * {
     pointer-events: none;
 }
-#ciwei-pet-dialogue .cp-dlg-title {
+#civebot-dialogue .cp-dlg-title {
     font-size: 12px; font-weight: 600;
     color: var(--cp-panel-text-muted);
     letter-spacing: .5px;
 }
-#ciwei-pet-dialogue .cp-dlg-settings-btn {
+#civebot-dialogue .cp-dlg-settings-btn {
     background: none; border: none;
     color: var(--cp-panel-text-muted);
     font-size: 13px; cursor: pointer;
@@ -501,11 +501,11 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     transition: all .15s; line-height: 1;
     margin-left: auto; margin-right: 2px;
 }
-#ciwei-pet-dialogue .cp-dlg-settings-btn:hover {
+#civebot-dialogue .cp-dlg-settings-btn:hover {
     background: var(--cp-panel-hover);
     color: #58a6ff;
 }
-#ciwei-pet-dialogue .cp-dlg-close {
+#civebot-dialogue .cp-dlg-close {
     background: none; border: none;
     color: var(--cp-panel-text-muted);
     font-size: 14px; cursor: pointer;
@@ -513,23 +513,23 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     transition: all .15s; line-height: 1;
     margin-left: auto; /* ⭐ 加上这句，它就自己飞到最右边了 */
 }
-#ciwei-pet-dialogue .cp-dlg-close:hover {
+#civebot-dialogue .cp-dlg-close:hover {
     background: var(--cp-panel-hover);
     color: var(--cp-panel-text);
 }
-#ciwei-pet-dialogue #cp-dlg-body {
+#civebot-dialogue #cp-dlg-body {
     flex: 1;
     overflow-y: auto; overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     padding: 4px;
     min-height: 0;
 }
-#ciwei-pet-dialogue #cp-dlg-body::-webkit-scrollbar { width: 3px; }
-#ciwei-pet-dialogue #cp-dlg-body::-webkit-scrollbar-thumb {
+#civebot-dialogue #cp-dlg-body::-webkit-scrollbar { width: 3px; }
+#civebot-dialogue #cp-dlg-body::-webkit-scrollbar-thumb {
     background: var(--cp-panel-text-muted);
     border-radius: 4px;
 }
-#ciwei-pet-dialogue .cp-dlg-item {
+#civebot-dialogue .cp-dlg-item {
     padding: 7px 11px;
     font-size: 12.5px;
     color: var(--cp-panel-text);
@@ -540,49 +540,49 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     display: flex; align-items: center; gap: 8px;
     line-height: 1.3; position: relative;
 }
-#ciwei-pet-dialogue .cp-dlg-item:hover { background: var(--cp-panel-hover); }
-#ciwei-pet-dialogue .cp-dlg-item:active {
+#civebot-dialogue .cp-dlg-item:hover { background: var(--cp-panel-hover); }
+#civebot-dialogue .cp-dlg-item:active {
     background: var(--cp-panel-active);
     transform: scale(.98);
 }
-#ciwei-pet-dialogue .cp-dlg-item .cp-dlg-icon {
+#civebot-dialogue .cp-dlg-item .cp-dlg-icon {
     font-size: 13px; flex-shrink: 0; opacity: .6;
 }
-#ciwei-pet-dialogue .cp-dlg-item.asked {
+#civebot-dialogue .cp-dlg-item.asked {
     color: var(--cp-panel-text-muted);
 }
-#ciwei-pet-dialogue .cp-dlg-item.asked::after {
+#civebot-dialogue .cp-dlg-item.asked::after {
     content: '✓'; position: absolute;
     right: 10px; font-size: 11px; color: #58a6ff;
 }
-#ciwei-pet-dialogue .cp-dlg-item.secret { color: #d97706; }
-#ciwei-pet-dialogue .cp-dlg-item.secret:hover {
+#civebot-dialogue .cp-dlg-item.secret { color: #d97706; }
+#civebot-dialogue .cp-dlg-item.secret:hover {
     background: rgba(251, 191, 36, .14);
 }
-#ciwei-pet-dialogue .cp-dlg-item.ai { color: #58a6ff; }
-#ciwei-pet-dialogue .cp-dlg-item.ai::before {
+#civebot-dialogue .cp-dlg-item.ai { color: #58a6ff; }
+#civebot-dialogue .cp-dlg-item.ai::before {
     content: ''; position: absolute;
     left: 0; top: 8px; bottom: 8px;
     width: 2px; background: #58a6ff; border-radius: 2px;
 }
-#ciwei-pet-dialogue .cp-dlg-item.replying {
+#civebot-dialogue .cp-dlg-item.replying {
     background: var(--cp-panel-active);
     color: var(--cp-panel-active-text);
 }
-#ciwei-pet-dialogue .cp-dlg-item.replying::after {
+#civebot-dialogue .cp-dlg-item.replying::after {
     content: '…'; position: absolute;
     right: 10px; font-size: 13px; color: #58a6ff;
 }
 
 /* ⭐ 对话输入区 */
-#ciwei-pet-dialogue .cp-dlg-input-area {
+#civebot-dialogue .cp-dlg-input-area {
     flex-shrink: 0;
     display: flex; gap: 6px;
     padding: 7px 9px 9px;
     border-top: 1px solid var(--cp-panel-border);
     background: var(--cp-panel-bg);
 }
-#ciwei-pet-dialogue .cp-dlg-input {
+#civebot-dialogue .cp-dlg-input {
     flex: 1; min-width: 0;
     padding: 9px 12px; /* 修正 padding，让文字居中 */
     background: var(--cp-panel-hover);
@@ -600,11 +600,11 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     box-sizing: border-box;
     overflow-y: hidden; /* 初始隐藏滚动条 */
 }
-#ciwei-pet-dialogue .cp-dlg-input:focus { border-color: #58a6ff; }
-#ciwei-pet-dialogue .cp-dlg-input::placeholder {
+#civebot-dialogue .cp-dlg-input:focus { border-color: #58a6ff; }
+#civebot-dialogue .cp-dlg-input::placeholder {
     color: var(--cp-panel-text-muted);
 }
-#ciwei-pet-dialogue .cp-dlg-send {
+#civebot-dialogue .cp-dlg-send {
     padding: 8px 14px;
     border: none; border-radius: 8px;
     background: #58a6ff; color: #fff;
@@ -614,11 +614,11 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
 }
-#ciwei-pet-dialogue .cp-dlg-send:hover { background: #4a8edb; }
-#ciwei-pet-dialogue .cp-dlg-send:active { transform: scale(.94); }
+#civebot-dialogue .cp-dlg-send:hover { background: #4a8edb; }
+#civebot-dialogue .cp-dlg-send:active { transform: scale(.94); }
 
 /* AI Key 面板 */
-#ciwei-pet-ai-settings {
+#civebot-ai-settings {
     position: fixed;
     background: var(--cp-panel-bg);
     backdrop-filter: blur(30px) saturate(180%);
@@ -638,13 +638,13 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
     transform-origin: top left;
 }
-#ciwei-pet-ai-settings.show { display: block; }
-#ciwei-pet-ai-settings::-webkit-scrollbar { width: 3px; }
-#ciwei-pet-ai-settings::-webkit-scrollbar-thumb {
+#civebot-ai-settings.show { display: block; }
+#civebot-ai-settings::-webkit-scrollbar { width: 3px; }
+#civebot-ai-settings::-webkit-scrollbar-thumb {
     background: var(--cp-panel-text-muted);
     border-radius: 4px;
 }
-#ciwei-pet-ai-settings .cp-ai-header {
+#civebot-ai-settings .cp-ai-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px 10px;
     border-bottom: 1px solid var(--cp-panel-border);
@@ -656,33 +656,33 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     -webkit-user-select: none;
     touch-action: none;
 }
-#ciwei-pet-ai-settings .cp-ai-header.dragging {
+#civebot-ai-settings .cp-ai-header.dragging {
     cursor: grabbing;
 }
-#ciwei-pet-ai-settings .cp-ai-title {
+#civebot-ai-settings .cp-ai-title {
     font-size: 14px; font-weight: 600;
     color: var(--cp-panel-text);
 }
-#ciwei-pet-ai-settings .cp-ai-close {
+#civebot-ai-settings .cp-ai-close {
     background: none; border: none;
     color: var(--cp-panel-text-muted);
     font-size: 16px; cursor: pointer;
     padding: 2px 8px; border-radius: 6px;
     transition: all .15s; line-height: 1;
 }
-#ciwei-pet-ai-settings .cp-ai-close:hover {
+#civebot-ai-settings .cp-ai-close:hover {
     background: var(--cp-panel-hover);
     color: var(--cp-panel-text);
 }
-#ciwei-pet-ai-settings .cp-ai-body { padding: 14px 16px 16px; }
-#ciwei-pet-ai-settings .cp-ai-field { margin-bottom: 14px; }
-#ciwei-pet-ai-settings .cp-ai-label {
+#civebot-ai-settings .cp-ai-body { padding: 14px 16px 16px; }
+#civebot-ai-settings .cp-ai-field { margin-bottom: 14px; }
+#civebot-ai-settings .cp-ai-label {
     display: block; font-size: 12px; font-weight: 600;
     color: var(--cp-panel-text-muted);
     letter-spacing: .3px; margin-bottom: 6px;
 }
-#ciwei-pet-ai-settings .cp-ai-key-row { display: flex; gap: 6px; }
-#ciwei-pet-ai-settings .cp-ai-key-row input {
+#civebot-ai-settings .cp-ai-key-row { display: flex; gap: 6px; }
+#civebot-ai-settings .cp-ai-key-row input {
     flex: 1; min-width: 0;
     padding: 8px 10px; font-size: 13px;
     font-family: 'SF Mono', Consolas, monospace;
@@ -691,8 +691,8 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     border-radius: 8px;
     color: var(--cp-panel-text); outline: none;
 }
-#ciwei-pet-ai-settings .cp-ai-key-row input:focus { border-color: #58a6ff; }
-#ciwei-pet-ai-settings .cp-ai-key-toggle {
+#civebot-ai-settings .cp-ai-key-row input:focus { border-color: #58a6ff; }
+#civebot-ai-settings .cp-ai-key-toggle {
     width: 36px;
     border: 1px solid var(--cp-panel-border);
     border-radius: 8px;
@@ -701,10 +701,10 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     color: var(--cp-panel-text-muted);
     transition: all .15s;
 }
-#ciwei-pet-ai-settings .cp-ai-key-toggle:hover {
+#civebot-ai-settings .cp-ai-key-toggle:hover {
     background: var(--cp-panel-active); color: #58a6ff;
 }
-#ciwei-pet-ai-settings .cp-ai-key-save {
+#civebot-ai-settings .cp-ai-key-save {
     padding: 0 14px;
     border: 1px solid #58a6ff;
     border-radius: 8px;
@@ -718,38 +718,38 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     white-space: nowrap;
     height: auto;
 }
-#ciwei-pet-ai-settings .cp-ai-key-save:hover {
+#civebot-ai-settings .cp-ai-key-save:hover {
     background: #4a8edb;
     border-color: #4a8edb;
 }
-#ciwei-pet-ai-settings .cp-ai-key-save:active {
+#civebot-ai-settings .cp-ai-key-save:active {
     transform: scale(.94);
 }
-#ciwei-pet-ai-settings .cp-ai-hint {
+#civebot-ai-settings .cp-ai-hint {
     font-size: 11px; color: var(--cp-panel-text-muted);
     margin-top: 4px; line-height: 1.5;
 }
-#ciwei-pet-ai-settings .cp-ai-hint a { text-decoration: none; }
-#ciwei-pet-ai-settings .cp-ai-hint a:hover { text-decoration: underline; }
-#ciwei-pet-ai-settings .cp-ai-params {
+#civebot-ai-settings .cp-ai-hint a { text-decoration: none; }
+#civebot-ai-settings .cp-ai-hint a:hover { text-decoration: underline; }
+#civebot-ai-settings .cp-ai-params {
     background: var(--cp-panel-hover);
     border-radius: 8px;
     padding: 10px 12px;
     font-size: 12px;
     color: var(--cp-panel-text);
 }
-#ciwei-pet-ai-settings .cp-ai-param-row {
+#civebot-ai-settings .cp-ai-param-row {
     display: flex; justify-content: space-between;
     padding: 3px 0;
 }
-#ciwei-pet-ai-settings .cp-ai-param-row span { color: var(--cp-panel-text-muted); }
-#ciwei-pet-ai-settings .cp-ai-param-row strong { font-weight: 600; }
-#ciwei-pet-ai-settings .cp-ai-actions {
+#civebot-ai-settings .cp-ai-param-row span { color: var(--cp-panel-text-muted); }
+#civebot-ai-settings .cp-ai-param-row strong { font-weight: 600; }
+#civebot-ai-settings .cp-ai-actions {
     display: flex; gap: 6px;
     margin-top: 16px; padding-top: 14px;
     border-top: 1px solid var(--cp-panel-border);
 }
-#ciwei-pet-ai-settings .cp-ai-btn {
+#civebot-ai-settings .cp-ai-btn {
     flex: 1; padding: 8px 12px;
     border: 1px solid var(--cp-panel-border);
     border-radius: 8px;
@@ -759,28 +759,28 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     cursor: pointer; transition: all .15s;
     font-family: inherit;
 }
-#ciwei-pet-ai-settings .cp-ai-btn:hover {
+#civebot-ai-settings .cp-ai-btn:hover {
     background: var(--cp-panel-active);
     border-color: #58a6ff; color: #58a6ff;
 }
-#ciwei-pet-ai-settings .cp-ai-btn.primary {
+#civebot-ai-settings .cp-ai-btn.primary {
     background: #58a6ff; color: #fff; border-color: #58a6ff;
 }
-#ciwei-pet-ai-settings .cp-ai-btn.primary:hover { background: #4a8edb; }
-#ciwei-pet-ai-settings .cp-ai-btn.danger:hover {
+#civebot-ai-settings .cp-ai-btn.primary:hover { background: #4a8edb; }
+#civebot-ai-settings .cp-ai-btn.danger:hover {
     background: rgba(239,68,68,.16);
     border-color: #ef4444; color: #f87171;
 }
-#ciwei-pet-ai-settings .cp-ai-status {
+#civebot-ai-settings .cp-ai-status {
     margin-top: 10px; font-size: 12px;
     text-align: center; min-height: 18px;
     color: var(--cp-panel-text-muted);
 }
-#ciwei-pet-ai-settings .cp-ai-status.ok { color: #22c55e; }
-#ciwei-pet-ai-settings .cp-ai-status.err { color: #ef4444; }
+#civebot-ai-settings .cp-ai-status.ok { color: #22c55e; }
+#civebot-ai-settings .cp-ai-status.err { color: #ef4444; }
 
 /* 恢复按钮 */
-#ciwei-pet-restore {
+#civebot-restore {
     position: fixed;
     bottom: 16px; right: 16px;
     width: 44px; height: 44px;
@@ -797,28 +797,28 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     z-index: 9001; transition: all .25s;
     animation: cp-restoreIn .4s cubic-bezier(.22,1,.36,1);
 }
-#ciwei-pet-restore.show { display: flex; }
-#ciwei-pet-restore:hover { transform: scale(1.1); border-color: #58a6ff; }
-#ciwei-pet-restore:active { transform: scale(.92); }
+#civebot-restore.show { display: flex; }
+#civebot-restore:hover { transform: scale(1.1); border-color: #58a6ff; }
+#civebot-restore:active { transform: scale(.92); }
 @keyframes cp-restoreIn {
     from { opacity: 0; transform: scale(.6) translateY(10px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @media (max-width: 600px) {
-    #ciwei-pet .cp-bubble { font-size: 12px; padding: 6px 11px; max-width: 220px; }
-    #ciwei-pet .cp-toolbar-btn { width: 25px; height: 25px; font-size: 12px; }
-    #ciwei-pet-restore { width: 40px; height: 40px; font-size: 18px; }
-    #ciwei-pet-menu .cp-mi { width: 34px; height: 34px; font-size: 15px; }
-    #ciwei-pet-submenu { min-width: 150px; }
-    #ciwei-pet-submenu .cp-sub-item { padding: 9px 12px; font-size: 13.5px; }
-    #ciwei-pet-dialogue { min-width: 200px; max-width: 240px; }
-    #ciwei-pet-dialogue .cp-dlg-item { padding: 10px 12px; font-size: 13.5px; }
+    #civebot .cp-bubble { font-size: 12px; padding: 6px 11px; max-width: 220px; }
+    #civebot .cp-toolbar-btn { width: 25px; height: 25px; font-size: 12px; }
+    #civebot-restore { width: 40px; height: 40px; font-size: 18px; }
+    #civebot-menu .cp-mi { width: 34px; height: 34px; font-size: 15px; }
+    #civebot-submenu { min-width: 150px; }
+    #civebot-submenu .cp-sub-item { padding: 9px 12px; font-size: 13.5px; }
+    #civebot-dialogue { min-width: 200px; max-width: 240px; }
+    #civebot-dialogue .cp-dlg-item { padding: 10px 12px; font-size: 13.5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #ciwei-pet, #ciwei-pet *,
-    #ciwei-pet-particles, #ciwei-pet-particles * {
+    #civebot, #civebot *,
+    #civebot-particles, #civebot-particles * {
         animation-duration: .01ms !important;
         transition-duration: .01ms !important;
     }
@@ -828,23 +828,23 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
    移动端 · 对话面板优化
 ================================================================ */
 @media (max-width: 600px) {
-    #ciwei-pet-dialogue {
+    #civebot-dialogue {
         min-width: 180px;
         max-width: 230px;
         max-height: 42vh;
     }
-    #ciwei-pet-dialogue .cp-dlg-item {
+    #civebot-dialogue .cp-dlg-item {
         padding: 6px 10px;
         font-size: 12px;
     }
-    #ciwei-pet-dialogue .cp-dlg-title {
+    #civebot-dialogue .cp-dlg-title {
         font-size: 11px;
     }
-    #ciwei-pet-dialogue .cp-dlg-input {
+    #civebot-dialogue .cp-dlg-input {
         padding: 7px 10px;
         font-size: 12.5px;
     }
-    #ciwei-pet-dialogue .cp-dlg-send {
+    #civebot-dialogue .cp-dlg-send {
         padding: 7px 12px;
         font-size: 12.5px;
     }
@@ -853,23 +853,23 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 /* ============================================================
    AI Key 面板 · 余额展示
 ================================================================ */
-#ciwei-pet-ai-settings .cp-ai-balance-box {
+#civebot-ai-settings .cp-ai-balance-box {
     background: var(--cp-panel-hover);
     border-radius: 8px;
     padding: 12px 14px;
     margin-top: 4px;
 }
-#ciwei-pet-ai-settings .cp-ai-balance-main {
+#civebot-ai-settings .cp-ai-balance-main {
     display: flex;
     align-items: baseline;
     gap: 4px;
     margin-bottom: 6px;
 }
-#ciwei-pet-ai-settings .cp-ai-balance-main .cur {
+#civebot-ai-settings .cp-ai-balance-main .cur {
     font-size: 14px;
     color: var(--cp-panel-text-muted);
 }
-#ciwei-pet-ai-settings .cp-ai-balance-main .amt {
+#civebot-ai-settings .cp-ai-balance-main .amt {
     font-size: 24px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -878,18 +878,18 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
-#ciwei-pet-ai-settings .cp-ai-balance-sub {
+#civebot-ai-settings .cp-ai-balance-sub {
     display: flex;
     gap: 12px;
     font-size: 11px;
     color: var(--cp-panel-text-muted);
     flex-wrap: wrap;
 }
-#ciwei-pet-ai-settings .cp-ai-balance-sub strong {
+#civebot-ai-settings .cp-ai-balance-sub strong {
     color: var(--cp-panel-text);
     font-weight: 600;
 }
-#ciwei-pet-ai-settings .cp-ai-balance-status {
+#civebot-ai-settings .cp-ai-balance-status {
     display: flex;
     align-items: center;
     gap: 5px;
@@ -897,67 +897,67 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     font-size: 11px;
     color: var(--cp-panel-text-muted);
 }
-#ciwei-pet-ai-settings .cp-ai-balance-status .dot {
+#civebot-ai-settings .cp-ai-balance-status .dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
 }
-#ciwei-pet-ai-settings .cp-ai-balance-status .dot.ok { background: #22c55e; }
-#ciwei-pet-ai-settings .cp-ai-balance-status .dot.err { background: #ef4444; }
-#ciwei-pet-ai-settings .cp-ai-balance-empty {
+#civebot-ai-settings .cp-ai-balance-status .dot.ok { background: #22c55e; }
+#civebot-ai-settings .cp-ai-balance-status .dot.err { background: #ef4444; }
+#civebot-ai-settings .cp-ai-balance-empty {
     text-align: center;
     font-size: 12px;
     color: var(--cp-panel-text-muted);
     padding: 8px 0;
 }
 @media (max-width: 600px) {
-    #ciwei-pet-ai-settings {
+    #civebot-ai-settings {
         width: 200px;
         max-height: 52vh;
     }
-    #ciwei-pet-ai-settings .cp-ai-header {
+    #civebot-ai-settings .cp-ai-header {
         padding: 8px 12px 8px;
     }
-    #ciwei-pet-ai-settings .cp-ai-title {
+    #civebot-ai-settings .cp-ai-title {
         font-size: 12px;
     }
-    #ciwei-pet-ai-settings .cp-ai-body {
+    #civebot-ai-settings .cp-ai-body {
         padding: 12px 12px 14px;
     }
-    #ciwei-pet-ai-settings .cp-ai-label {
+    #civebot-ai-settings .cp-ai-label {
         font-size: 11px;
         margin-bottom: 5px;
     }
-    #ciwei-pet-ai-settings .cp-ai-key-row input {
+    #civebot-ai-settings .cp-ai-key-row input {
         padding: 7px 9px;
         font-size: 12px;
     }
-    #ciwei-pet-ai-settings .cp-ai-key-toggle {
+    #civebot-ai-settings .cp-ai-key-toggle {
         width: 32px;
         font-size: 12px;
     }
-    #ciwei-pet-ai-settings .cp-ai-params {
+    #civebot-ai-settings .cp-ai-params {
         padding: 8px 10px;
         font-size: 11px;
     }
-    #ciwei-pet-ai-settings .cp-ai-param-row {
+    #civebot-ai-settings .cp-ai-param-row {
         padding: 2px 0;
     }
-    #ciwei-pet-ai-settings .cp-ai-btn {
+    #civebot-ai-settings .cp-ai-btn {
         padding: 7px 6px;
         font-size: 11px;
     }
-    #ciwei-pet-ai-settings .cp-ai-balance-box {
+    #civebot-ai-settings .cp-ai-balance-box {
         padding: 10px 12px;
     }
-    #ciwei-pet-ai-settings .cp-ai-balance-main .amt {
+    #civebot-ai-settings .cp-ai-balance-main .amt {
         font-size: 20px;
     }
-    #ciwei-pet-ai-settings .cp-ai-balance-sub {
+    #civebot-ai-settings .cp-ai-balance-sub {
         font-size: 10px;
         gap: 8px;
     }
-    #ciwei-pet-ai-settings .cp-ai-actions {
+    #civebot-ai-settings .cp-ai-actions {
         gap: 4px;
     }
 }
@@ -966,7 +966,7 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 /* ============================================================
    💰 消费统计面板
 ================================================================ */
-#ciwei-pet-usage-panel {
+#civebot-usage-panel {
     position: fixed;
     background: var(--cp-panel-bg);
     backdrop-filter: blur(30px) saturate(180%);
@@ -982,8 +982,8 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     animation: cp-menuIn .2s cubic-bezier(.22,1,.36,1);
     transform-origin: top left;
 }
-#ciwei-pet-usage-panel.show { display: block; }
-#ciwei-pet-usage-panel .cp-usage-header {
+#civebot-usage-panel.show { display: block; }
+#civebot-usage-panel .cp-usage-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px 10px;
     border-bottom: 1px solid var(--cp-panel-border);
@@ -992,57 +992,57 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     -webkit-user-select: none;
     touch-action: none;
 }
-#ciwei-pet-usage-panel .cp-usage-header.dragging {
+#civebot-usage-panel .cp-usage-header.dragging {
     cursor: grabbing;
 }
-#ciwei-pet-usage-panel .cp-usage-title {
+#civebot-usage-panel .cp-usage-title {
     font-size: 14px; font-weight: 600;
     color: var(--cp-panel-text);
 }
-#ciwei-pet-usage-panel .cp-usage-close {
+#civebot-usage-panel .cp-usage-close {
     background: none; border: none;
     color: var(--cp-panel-text-muted);
     font-size: 16px; cursor: pointer;
     padding: 2px 8px; border-radius: 6px;
     transition: all .15s; line-height: 1;
 }
-#ciwei-pet-usage-panel .cp-usage-close:hover {
+#civebot-usage-panel .cp-usage-close:hover {
     background: var(--cp-panel-hover);
     color: var(--cp-panel-text);
 }
-#ciwei-pet-usage-panel .cp-usage-body {
+#civebot-usage-panel .cp-usage-body {
     padding: 14px 16px 16px;
 }
-#ciwei-pet-usage-panel .cp-usage-block {
+#civebot-usage-panel .cp-usage-block {
     background: var(--cp-panel-hover);
     border-radius: 10px;
     padding: 12px 14px;
     margin-bottom: 10px;
 }
-#ciwei-pet-usage-panel .cp-usage-block:last-child { margin-bottom: 0; }
-#ciwei-pet-usage-panel .cp-usage-label {
+#civebot-usage-panel .cp-usage-block:last-child { margin-bottom: 0; }
+#civebot-usage-panel .cp-usage-label {
     font-size: 11px;
     color: var(--cp-panel-text-muted);
     margin-bottom: 6px;
     letter-spacing: .3px;
 }
-#ciwei-pet-usage-panel .cp-usage-main {
+#civebot-usage-panel .cp-usage-main {
     display: flex;
     align-items: baseline;
     gap: 4px;
     margin-bottom: 4px;
 }
-#ciwei-pet-usage-panel .cp-usage-num {
+#civebot-usage-panel .cp-usage-num {
     font-size: 22px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--cp-panel-text);
 }
-#ciwei-pet-usage-panel .cp-usage-unit {
+#civebot-usage-panel .cp-usage-unit {
     font-size: 11px;
     color: var(--cp-panel-text-muted);
 }
-#ciwei-pet-usage-panel .cp-usage-cost {
+#civebot-usage-panel .cp-usage-cost {
     font-size: 14px;
     font-weight: 600;
     background: linear-gradient(135deg, #58a6ff, #22c55e);
@@ -1051,8 +1051,8 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
     background-clip: text;
 }
 @media (max-width: 600px) {
-    #ciwei-pet-usage-panel { width: 200px; }
-    #ciwei-pet-usage-panel .cp-usage-num { font-size: 20px; }
+    #civebot-usage-panel { width: 200px; }
+    #civebot-usage-panel .cp-usage-num { font-size: 20px; }
 }
 
 .cp-dlg-input {
@@ -1077,7 +1077,7 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 }
 
 /* ⭐ 限制超长气泡的高度，加宽并优化排版 */
-#ciwei-pet .cp-bubble.long {
+#civebot .cp-bubble.long {
     white-space: pre-wrap !important;
     word-break: break-word !important;
     max-height: 40vh !important; /* 最高占屏幕 40% */
@@ -1094,10 +1094,10 @@ body[data-fps="low"] #ciwei-pet .cp-bubble {
 }
 
 /* 美化气泡里的滚动条 */
-#ciwei-pet .cp-bubble.long::-webkit-scrollbar {
+#civebot .cp-bubble.long::-webkit-scrollbar {
     width: 4px;
 }
-#ciwei-pet .cp-bubble.long::-webkit-scrollbar-thumb {
+#civebot .cp-bubble.long::-webkit-scrollbar-thumb {
     background: rgba(128, 128, 128, 0.5);
     border-radius: 4px;
 }
