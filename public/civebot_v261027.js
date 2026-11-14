@@ -4,8 +4,8 @@
 (function () {
     'use strict';
 
-    if (window.__ciweiPetLoaded) return;
-    window.__ciweiPetLoaded = true;
+    if (window.__civebotLoaded) return;
+    window.__civebotLoaded = true;
 
     // ⭐ 注入 UI 2.0 优雅动画与气泡自适应样式
     var style = document.createElement('style');
@@ -18,7 +18,7 @@
 
     var IMG_BASE = './';
     var IMAGES = { idle1: IMG_BASE + 'idle-1.png', idle2: IMG_BASE + 'idle-2.png', blink: IMG_BASE + 'blink.png', surprised: IMG_BASE + 'surprised.png', happy: IMG_BASE + 'happy.png', angry: IMG_BASE + 'angry.png', sleep: IMG_BASE + 'sleep.png' };
-    var PET_PROFILE = { name: '小c', developer: 'LouFung', birthday: '2026-09-10', ipLine: '一只住在 CiweiPet 里的电子刺猬，也是开发者 LouFung 的 IP 分身。' };
+    var PET_PROFILE = { name: '小c', developer: 'LouFung', birthday: '2026-09-10', ipLine: '一只住在 CiveBot 里的电子刺猬，也是开发者 LouFung 的 IP 分身。' };
     var SCALES = [0.7, 0.85, 1.0, 1.25, 1.5, 2.0];
     var DEFAULT_SCALE_INDEX = 2;
     var AI_CONFIG_URL = './ai-config.json';

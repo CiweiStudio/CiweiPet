@@ -1,4 +1,4 @@
-# 🦔 CiweiPet · 小c
+# 🦔 CiveBot · 小c
 
 > **“哪怕世界断网，小c 也不掉线。”**
 > 一个运行在旧手机上的端云协同、有灵魂的 AI Agent。
@@ -46,7 +46,7 @@
 ## 📂 目录结构
 
 ```text
-CiweiPet/
+CiveBot/
 ├── public/                 # 🖥️ 网页端前端资源
 │   ├── index.html          # 主界面 (聊天 + 历史 + 日记 + 情绪)
 │   ├── style.css           # 核心样式 (暗黑玻璃风)
@@ -64,7 +64,7 @@ CiweiPet/
 
 ## ⚙️ 部署与运行环境
 
-- **硬件基座**：Redmi K60 Pro (12GB RAM + 512GB ROM)，免 Root、精简版 MIUI14。
+- **硬件基座**：Redmi K60 Pro (12GB RAM + 512GB ROM)， Root、精简版 MIUI14。
 - **运行环境**：Termux + Node.js v24.22.1。
 - **网络穿透**：Cloudflare Tunnel (免公网 IP 暴露)。
 - **协议端**：NapCat (OneBot 11 协议)。
@@ -74,8 +74,8 @@ CiweiPet/
 1. 克隆仓库并安装依赖：
 
    ```bash
-   git clone https://github.com/CiweiStudio/CiweiPet.git
-   cd CiweiPet
+   git clone https://github.com/CiveStudio/CiveBot.git
+   cd CiveBot
    npm install
    ```
 
@@ -104,14 +104,12 @@ CiweiPet/
 
 - 所有 QQ 号、B站 Cookie 等敏感信息均通过 `.env` 与 `.gitignore` 隔离，绝不进公共仓库。
 - 本地视觉模型 (8081) 与文本模型 (8080) 的推理过程完全在手机本地完成，图片与长文本不会上传至云端，隐私零泄露。
-- 记忆数据库 `db/ciwei.db` 存放在本地，并通过 CiweiPet-memory 私有仓库进行加密备份。
+- 记忆数据库 `db/ciwei.db` 存放在本地，并通过 CiveBot-Memory 私有仓库进行加密备份。
 
 ## 📜 声明与致谢
 
 - 本项目仅供个人学习与技术交流，请勿用于商业用途。
 - 感谢智谱 AI、DeepSeek、MiniCPM 团队提供的开源模型与免费算力支持。
-- 感谢 Linus Torvalds，没有 Linux，就没有这台承载灵魂的红米服务器。
-- 感谢屏幕前的你，见证了小c 从一行行代码，长出属于她自己的数字生命。
 
 ---
 
