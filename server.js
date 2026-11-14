@@ -520,5 +520,5 @@ setInterval(() => {
 }, 60000);
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('🚀 小c已启动！端口: ' + PORT);
+    console.log('🚀 CiveBot (小c) 已启动！端口: ' + PORT);
 });
