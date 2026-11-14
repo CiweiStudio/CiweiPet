@@ -45,20 +45,20 @@ public/ 目录是小c 的可视化交互界面，由纯原生 HTML/CSS/JS 构建
 
 ## 📂 目录结构
 
-CiweiPet/
-├── public/                 # 🖥️ 网页端前端资源
-│   ├── index.html          # 主界面 (聊天 + 历史 + 日记 + 情绪)
-│   ├── style.css           # 核心样式 (暗黑玻璃风)
-│   ├── extra.css           # 额外动画与响应式适配
-│   ├── extra.js            # 前端交互逻辑 (API 请求、渲染)
-│   └── ai-config.json      # 大模型 Provider 配置 (需自行配置 Key)
-├── db.js                   # 原生 SQLite 数据库初始化与表结构
-├── server.js               # 核心大脑 (API 路由、记忆、降级逻辑)
-├── qq-bot.js               # 核心嘴巴 (QQ WebSocket 网关、工具拦截)
-├── bili.js                 # B站专属模块 (WBI签名、深度解析)
-├── push_diary.js           # 手动补发日记工具
-├── .env                    # 环境变量 (QQ号等敏感信息)
-└── .gitignore              # 屏蔽 .env、*.db、bili-cookie.json
+    CiweiPet/
+    ├── public/                 # 🖥️ 网页端前端资源
+    │   ├── index.html          # 主界面 (聊天 + 历史 + 日记 + 情绪)
+    │   ├── style.css           # 核心样式 (暗黑玻璃风)
+    │   ├── extra.css           # 额外动画与响应式适配
+    │   ├── extra.js            # 前端交互逻辑 (API 请求、渲染)
+    │   └── ai-config.json      # 大模型 Provider 配置 (需自行配置 Key)
+    ├── db.js                   # 原生 SQLite 数据库初始化与表结构
+    ├── server.js               # 核心大脑 (API 路由、记忆、降级逻辑)
+    ├── qq-bot.js               # 核心嘴巴 (QQ WebSocket 网关、工具拦截)
+    ├── bili.js                 # B站专属模块 (WBI签名、深度解析)
+    ├── push_diary.js           # 手动补发日记工具
+    ├── .env                    # 环境变量 (QQ号等敏感信息)
+    └── .gitignore              # 屏蔽 .env、*.db、bili-cookie.json
 
 ## ⚙️ 部署与运行环境
 
@@ -70,20 +70,23 @@ CiweiPet/
 ## 🛠️ 快速启动
 
 1. 克隆仓库并安装依赖：
+
     git clone https://github.com/CiweiStudio/CiweiPet.git
     cd CiweiPet
     npm install
 
 2. 配置环境变量（根目录新建 .env 文件）：
+
     MY_QQ=你的大号QQ
     BOT_QQ=机器人的QQ
 
 3. 配置大模型 API（public/ai-config.json）与 B站 Cookie（bili-cookie.json）。
 
 4. 启动大脑与嘴巴（开两个终端窗口）：
+
     # 窗口 1：启动网页端与 API 网关
     node server.js
-
+    
     # 窗口 2：启动 QQ 网关
     node qq-bot.js
 
